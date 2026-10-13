@@ -1,0 +1,169 @@
+<Window x:Class="LiveCue.App.MonitorManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:local="clr-namespace:LiveCue.App"
+        mc:Ignorable="d"
+        Title="Monitor" Height="700" Width="420"
+        Background="#1E1E1E">
+    <Window.Resources>
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="Background" Value="#333"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#555"/>
+        </Style>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#DDD"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="Background" Value="#2A2A2A"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#555"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="#DDD"/>
+            <Setter Property="BorderBrush" Value="#444"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+    </Window.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10">
+
+            <GroupBox Header="Monitor fisici">
+                <StackPanel>
+                    <Button Content="Aggiorna elenco monitor" Command="{Binding RefreshDisplaysCommand}"/>
+                    <ItemsControl ItemsSource="{Binding Displays}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="#444" BorderThickness="0,0,0,1" Padding="4" Margin="0,2">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Label}" FontWeight="Bold" TextWrapping="Wrap"/>
+                                        <TextBlock>
+                                            <TextBlock.Text>
+                                                <MultiBinding StringFormat="{}{0}x{1} @ ({2},{3})">
+                                                    <Binding Path="Width"/>
+                                                    <Binding Path="Height"/>
+                                                    <Binding Path="X"/>
+                                                    <Binding Path="Y"/>
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Cambia risoluzione">
+                <StackPanel>
+                    <TextBlock Text="Monitor" FontSize="11" Foreground="#999"/>
+                    <ComboBox ItemsSource="{Binding Displays}"
+                              SelectedItem="{Binding SelectedDisplayForResolution}"
+                              DisplayMemberPath="Label"/>
+                    <TextBlock Text="Modalit&#224;" FontSize="11" Foreground="#999"/>
+                    <ComboBox ItemsSource="{Binding AvailableModes}"
+                              SelectedItem="{Binding SelectedMode}"/>
+                    <Button Content="Applica risoluzione" Command="{Binding ApplyResolutionCommand}"/>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Crea monitor virtuale">
+                <StackPanel>
+                    <TextBlock FontSize="11" Foreground="#999" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Un monitor virtuale &#232; una regione (un layer) all'interno di un monitor reale, con una risoluzione a piacere: utile per gestire pi&#249; uscite video indipendenti sullo stesso schermo."/>
+
+                    <TextBlock Text="Nome" FontSize="11" Foreground="#999"/>
+                    <TextBox Text="{Binding NewVirtualDisplayName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                    <TextBlock Text="Monitor ospite" FontSize="11" Foreground="#999"/>
+                    <ComboBox ItemsSource="{Binding Displays}"
+                              SelectedItem="{Binding NewVirtualHostDisplay}"
+                              DisplayMemberPath="Label"/>
+
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Larghezza" FontSize="11" Foreground="#999"/>
+                            <TextBox Text="{Binding NewVirtualWidth, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Altezza" FontSize="11" Foreground="#999"/>
+                            <TextBox Text="{Binding NewVirtualHeight, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <Button Content="1920x1080" Click="PresetFullHd_Click" Padding="6,3" FontSize="10"/>
+                        <Button Content="1280x720" Click="PresetHd_Click" Padding="6,3" FontSize="10" Margin="6,4,0,4"/>
+                        <Button Content="3840x2160" Click="Preset4K_Click" Padding="6,3" FontSize="10" Margin="6,4,0,4"/>
+                    </StackPanel>
+
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Offset X" FontSize="11" Foreground="#999"/>
+                            <TextBox Text="{Binding NewVirtualOffsetX, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Offset Y" FontSize="11" Foreground="#999"/>
+                            <TextBox Text="{Binding NewVirtualOffsetY, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="{Binding VirtualDisplayFormButtonText}" Command="{Binding CreateVirtualDisplayCommand}"/>
+                        <Button Grid.Column="1" Content="Annulla" Command="{Binding CancelEditVirtualDisplayCommand}"
+                                Margin="6,4,0,4"
+                                Visibility="{Binding IsEditingVirtualDisplay, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding VirtualDisplays}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="#444" BorderThickness="0,0,0,1" Padding="4" Margin="0,2">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Label}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                        <Button Grid.Column="1" Content="Modifica" Click="EditVirtualDisplay_Click"
+                                                Padding="6,3" FontSize="10" Margin="0,4,4,4"/>
+                                        <Button Grid.Column="2" Content="Rimuovi" Click="RemoveVirtualDisplay_Click"
+                                                Padding="6,3" FontSize="10"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </GroupBox>
+
+        </StackPanel>
+    </ScrollViewer>
+</Window>

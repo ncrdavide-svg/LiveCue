@@ -1,0 +1,150 @@
+<Window x:Class="LiveCue.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:LiveCue.App"
+        mc:Ignorable="d"
+        Title="LiveCue" Height="650" Width="1100"
+        Background="#1E1E1E">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Margin" Value="4"/>
+            <Setter Property="Background" Value="#333"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#555"/>
+        </Style>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#DDD"/>
+        </Style>
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="#DDD"/>
+            <Setter Property="BorderBrush" Value="#444"/>
+        </Style>
+        <local:IsNotLastCueConverter x:Key="IsNotLastCueConverter"/>
+    </Window.Resources>
+
+    <!-- ESC = panic button: stops every cue and all playback immediately, from anywhere in the window. -->
+    <Window.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding PanicCommand}"/>
+    </Window.InputBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <StackPanel Orientation="Horizontal" Grid.Row="0" Background="#252525">
+            <Button Content="Nuovo" Command="{Binding NewProjectCommand}"/>
+            <Button Content="Apri..." Command="{Binding LoadProjectCommand}"/>
+            <Button Content="Salva..." Command="{Binding SaveProjectCommand}"/>
+            <Separator Margin="8,0"/>
+            <Button Content="+ Video Cue" Command="{Binding AddVideoCueCommand}"/>
+            <Button Content="+ Audio Cue" Command="{Binding AddAudioCueCommand}"/>
+            <Button Content="Elimina" Command="{Binding RemoveSelectedCueCommand}"/>
+            <Button Content="Monitor..." Click="OpenMonitorManager_Click"/>
+            <Button Content="Monitor live..." Click="OpenMonitorPreview_Click"/>
+            <Separator Margin="8,0"/>
+            <Button Content="GO" Command="{Binding GoCommand}" Background="#2E7D32" FontWeight="Bold" Width="80"/>
+            <Button Content="PANIC (ESC)" Command="{Binding PanicCommand}" Background="#C62828" FontWeight="Bold" Width="100"/>
+        </StackPanel>
+
+        <!-- Cue list -->
+        <DataGrid x:Name="CueGrid" Grid.Row="1"
+                  ItemsSource="{Binding CueList.Cues}"
+                  SelectedIndex="{Binding CueList.SelectedIndex, Mode=TwoWay}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  AllowDrop="True"
+                  Drop="CueGrid_Drop"
+                  DragOver="CueGrid_DragOver"
+                  Background="#1E1E1E"
+                  Foreground="Black"
+                  RowBackground="#2A2A2A"
+                  AlternatingRowBackground="#262626"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column"
+                  Margin="4">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="" Width="28" CanUserResize="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <!-- Drag handle: trascina da qui per spostare la cue prima/dopo le altre. -->
+                            <TextBlock Text="&#9776;" Foreground="#777" FontSize="14"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Cursor="SizeAll"
+                                       MouseLeftButtonDown="DragHandle_MouseLeftButtonDown"
+                                       MouseMove="DragHandle_MouseMove"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="#" Binding="{Binding Number}" Width="40"/>
+                <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="70" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="160"/>
+                <DataGridTextColumn Header="File" Binding="{Binding FilePath}" Width="260"/>
+                <DataGridTextColumn Header="Pre-wait" Binding="{Binding PreWait}" Width="90"/>
+                <DataGridTextColumn Header="Post-wait" Binding="{Binding PostWait}" Width="90"/>
+                <DataGridTextColumn Header="Durata" Binding="{Binding Duration, StringFormat=hh\\:mm\\:ss}" Width="80" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Countdown" Binding="{Binding RemainingTime, StringFormat=hh\\:mm\\:ss}" Width="120" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="FontSize" Value="18"/>
+                            <Setter Property="FontFamily" Value="Consolas"/>
+                            <Setter Property="Foreground" Value="#FF5252"/>
+                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTemplateColumn Header="Continue" Width="130">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <!-- The last cue in the list has nothing to chain into, so it can only ever be "Non continua". -->
+                            <ComboBox ItemsSource="{x:Static local:MainViewModel.ContinueModeOptions}"
+                                      SelectedValuePath="Value"
+                                      DisplayMemberPath="Label"
+                                      SelectedValue="{Binding ContinueMode, UpdateSourceTrigger=PropertyChanged}"
+                                      BorderThickness="0" Background="Transparent" Margin="2">
+                                <ComboBox.IsEnabled>
+                                    <MultiBinding Converter="{StaticResource IsNotLastCueConverter}">
+                                        <Binding/>
+                                        <Binding RelativeSource="{RelativeSource AncestorType=Window}" Path="DataContext.CueList.Cues"/>
+                                        <Binding RelativeSource="{RelativeSource AncestorType=Window}" Path="DataContext.CueList.Cues.Count"/>
+                                    </MultiBinding>
+                                </ComboBox.IsEnabled>
+                            </ComboBox>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Schermo" Width="160">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.DisplayTargets}"
+                                      SelectedValuePath="Id"
+                                      DisplayMemberPath="Label"
+                                      SelectedValue="{Binding TargetDisplayId, UpdateSourceTrigger=PropertyChanged}"
+                                      BorderThickness="0" Background="Transparent" Margin="2"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridCheckBoxColumn Header="Loop" Binding="{Binding Loop}" Width="50"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Status bar: transient messages on the left, live system load on the right -->
+        <Grid Grid.Row="2" Background="#252525">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" Foreground="#AAA" FontSize="11" Padding="8,4"/>
+            <TextBlock Grid.Column="1" Text="{Binding SystemStatusText}" Foreground="#8BC34A" FontSize="11"
+                       FontFamily="Consolas" Padding="8,4"/>
+        </Grid>
+    </Grid>
+</Window>
