@@ -6,6 +6,8 @@
         ResizeMode="NoResize"
         Topmost="True"
         ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False"
         WindowStartupLocation="Manual"
         Background="Black">
     <Grid Background="Black">

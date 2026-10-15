@@ -154,8 +154,11 @@ public class MediaPlayerCuePlayer : ICuePlayer
         if (window is not null)
         {
             window.Attach(player);
+            // No Activate(): the window must never take keyboard focus from the main window, or
+            // the operator gets locked out (can't click past a topmost video, can't PANIC either
+            // once it has focus) if a cue's screen happens to be the one the app is on.
+            // New Topmost windows already layer above older Topmost ones without needing it.
             window.Show();
-            window.Activate(); // among same-Topmost windows, the most recently activated one is frontmost
             _activeWindows[cue.Id] = window;
             VideoWindowOpened?.Invoke(cue.Id, window);
         }
