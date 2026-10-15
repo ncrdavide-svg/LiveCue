@@ -31,6 +31,9 @@
     <!-- ESC = panic button: stops every cue and all playback immediately, from anywhere in the window. -->
     <Window.InputBindings>
         <KeyBinding Key="Escape" Command="{Binding PanicCommand}"/>
+        <KeyBinding Key="Z" Modifiers="Ctrl" Command="{Binding UndoCommand}"/>
+        <KeyBinding Key="Y" Modifiers="Ctrl" Command="{Binding RedoCommand}"/>
+        <KeyBinding Key="Z" Modifiers="Ctrl+Shift" Command="{Binding RedoCommand}"/>
     </Window.InputBindings>
 
     <Grid>
@@ -49,6 +52,10 @@
             <Button Content="+ Video Cue" Command="{Binding AddVideoCueCommand}"/>
             <Button Content="+ Audio Cue" Command="{Binding AddAudioCueCommand}"/>
             <Button Content="Elimina" Command="{Binding RemoveSelectedCueCommand}"/>
+            <Separator Margin="8,0"/>
+            <Button Content="↶ Annulla" Command="{Binding UndoCommand}" ToolTip="{Binding UndoTooltip}"/>
+            <Button Content="↷ Ripeti" Command="{Binding RedoCommand}" ToolTip="{Binding RedoTooltip}"/>
+            <Separator Margin="8,0"/>
             <Button Content="Monitor..." Click="OpenMonitorManager_Click"/>
             <Button Content="Monitor live..." Click="OpenMonitorPreview_Click"/>
             <Separator Margin="8,0"/>

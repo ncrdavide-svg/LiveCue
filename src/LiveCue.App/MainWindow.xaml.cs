@@ -157,7 +157,7 @@ public partial class MainWindow : Window
 
         newIndex = Math.Clamp(newIndex, 0, cues.Count - 1);
         if (newIndex != oldIndex)
-            cues.Move(oldIndex, newIndex);
+            ViewModel.MoveCue(oldIndex, newIndex);
     }
 
     private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
