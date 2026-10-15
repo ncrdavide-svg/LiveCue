@@ -1,6 +1,8 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using LiveCue.Core.Models;
 
@@ -12,6 +14,16 @@ namespace LiveCue.App;
 public partial class MainWindow : Window
 {
     private const string CueRowFormat = "CueRow";
+
+    // ESC as a system-wide hotkey for PANIC: a cue's topmost video output window can end up
+    // covering the operator's own screen, and LibVLC's native video surface can grab OS keyboard
+    // focus on its own (independent of any WPF-level focus/activation setting on that window) -
+    // so the in-window Escape KeyBinding alone isn't reliable. RegisterHotKey fires regardless of
+    // which window currently has focus, which is what a panic button needs to guarantee.
+    private const int PanicHotKeyId = 0x5A1C;
+    private const uint ModNoRepeat = 0x4000;
+    private const uint VkEscape = 0x1B;
+    private const int WmHotKey = 0x0312;
 
     private MainViewModel ViewModel => (MainViewModel)DataContext;
     private MonitorManagerWindow? _monitorWindow;
@@ -27,7 +39,31 @@ public partial class MainWindow : Window
             if (!ViewModel.ConfirmDiscardChanges())
                 e.Cancel = true;
         };
+
+        SourceInitialized += (_, _) =>
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            HwndSource.FromHwnd(hwnd)?.AddHook(PanicHotKeyWndProc);
+            RegisterHotKey(hwnd, PanicHotKeyId, ModNoRepeat, VkEscape);
+        };
+        Closed += (_, _) => UnregisterHotKey(new WindowInteropHelper(this).Handle, PanicHotKeyId);
     }
+
+    private IntPtr PanicHotKeyWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WmHotKey && wParam.ToInt32() == PanicHotKeyId)
+        {
+            ViewModel.PanicCommand.Execute(null);
+            handled = true;
+        }
+        return IntPtr.Zero;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
     private void OpenMonitorManager_Click(object sender, RoutedEventArgs e)
     {
