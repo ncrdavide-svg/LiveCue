@@ -5,6 +5,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:local="clr-namespace:LiveCue.App"
         mc:Ignorable="d"
+        Icon="/Assets/LiveCue.ico"
         Title="Monitor" Height="700" Width="420"
         Background="#1E1E1E">
     <Window.Resources>

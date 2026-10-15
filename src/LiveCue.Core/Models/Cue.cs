@@ -9,7 +9,8 @@ namespace LiveCue.Core.Models;
 [JsonDerivedType(typeof(AudioCue), "audio")]
 public abstract class Cue : INotifyPropertyChanged
 {
-    public Guid Id { get; } = Guid.NewGuid();
+    [JsonInclude]
+    public Guid Id { get; private set; } = Guid.NewGuid();
     public abstract CueType Type { get; }
 
     private string _number = string.Empty;

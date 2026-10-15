@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:LiveCue.App"
         mc:Ignorable="d"
-        Title="LiveCue" Height="650" Width="1100"
+        Icon="/Assets/LiveCue.ico"
+        Title="{Binding WindowTitle}" Height="650" Width="1100"
         Background="#1E1E1E">
     <Window.Resources>
         <Style TargetType="Button">
@@ -23,6 +24,7 @@
             <Setter Property="BorderBrush" Value="#444"/>
         </Style>
         <local:IsNotLastCueConverter x:Key="IsNotLastCueConverter"/>
+        <local:SecondsConverter x:Key="SecondsConverter"/>
     </Window.Resources>
 
     <!-- ESC = panic button: stops every cue and all playback immediately, from anywhere in the window. -->
@@ -86,8 +88,9 @@
                 <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="70" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="160"/>
                 <DataGridTextColumn Header="File" Binding="{Binding FilePath}" Width="260"/>
-                <DataGridTextColumn Header="Pre-wait" Binding="{Binding PreWait}" Width="90"/>
-                <DataGridTextColumn Header="Post-wait" Binding="{Binding PostWait}" Width="90"/>
+                <!-- Seconds ("2,5"), or m:ss. A bare TimeSpan binding would read "5" as five days. -->
+                <DataGridTextColumn Header="Pre-wait (s)" Binding="{Binding PreWait, Converter={StaticResource SecondsConverter}}" Width="90"/>
+                <DataGridTextColumn Header="Post-wait (s)" Binding="{Binding PostWait, Converter={StaticResource SecondsConverter}}" Width="90"/>
                 <DataGridTextColumn Header="Durata" Binding="{Binding Duration, StringFormat=hh\\:mm\\:ss}" Width="80" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Countdown" Binding="{Binding RemainingTime, StringFormat=hh\\:mm\\:ss}" Width="120" IsReadOnly="True">
                     <DataGridTextColumn.ElementStyle>
@@ -133,6 +136,8 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridCheckBoxColumn Header="Loop" Binding="{Binding Loop}" Width="50"/>
+                <!-- Unchecked = the cue is skipped (GO and Continua chains pass over it). -->
+                <DataGridCheckBoxColumn Header="Attiva" Binding="{Binding IsArmed}" Width="50"/>
             </DataGrid.Columns>
         </DataGrid>
 

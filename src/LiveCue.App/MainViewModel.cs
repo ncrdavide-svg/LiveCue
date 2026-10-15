@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using System.Windows.Threading;
 using LiveCue.Core.Models;
 using LiveCue.Core.Services;
@@ -53,6 +54,7 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly MediaPlayerCuePlayer _player;
     private readonly SystemMonitor _systemMonitor = new();
     private readonly DispatcherTimer _systemMonitorTimer;
+    private bool _isSamplingSystemStats;
     private string? _currentProjectPath;
 
     private DisplayInfo? _selectedDisplayForResolution;
@@ -151,6 +153,9 @@ public class MainViewModel : INotifyPropertyChanged
     {
         _player = new MediaPlayerCuePlayer(App.VlcInstance!, ResolveBounds);
 
+        _player.CueFailed += (cue, reason) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+            StatusMessage = $"Cue {cue.Number} \"{cue.Name}\" non eseguita: {reason}");
+
         Engine = new CueEngine(CueList, _player);
 
         GoCommand = new RelayCommand(Engine.GoAsync);
@@ -164,7 +169,7 @@ public class MainViewModel : INotifyPropertyChanged
         CreateVirtualDisplayCommand = new RelayCommand(CreateVirtualDisplay,
             () => NewVirtualHostDisplay is not null && NewVirtualWidth > 0 && NewVirtualHeight > 0);
         CancelEditVirtualDisplayCommand = new RelayCommand(CancelEditVirtualDisplay);
-        SaveProjectCommand = new RelayCommand(SaveProject);
+        SaveProjectCommand = new RelayCommand(() => SaveProject());
         LoadProjectCommand = new RelayCommand(LoadProject);
         NewProjectCommand = new RelayCommand(NewProject);
 
@@ -172,6 +177,7 @@ public class MainViewModel : INotifyPropertyChanged
         VirtualDisplays.CollectionChanged += (_, _) => OnPropertyChanged(nameof(DisplayTargets));
 
         RefreshDisplays();
+        StartChangeTracking();
 
         _systemMonitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _systemMonitorTimer.Tick += (_, _) => UpdateSystemStats();
@@ -179,9 +185,27 @@ public class MainViewModel : INotifyPropertyChanged
         UpdateSystemStats();
     }
 
-    private void UpdateSystemStats()
+    private async void UpdateSystemStats()
     {
-        var stats = _systemMonitor.Sample();
+        // Sampling runs on a worker thread: refreshing the GPU performance counters can take
+        // over half a second, which on the UI thread froze the whole app (GO included) every
+        // few seconds. One sample at a time, since SystemMonitor keeps state between samples.
+        if (_isSamplingSystemStats) return;
+        _isSamplingSystemStats = true;
+        SystemStats stats;
+        try
+        {
+            stats = await Task.Run(_systemMonitor.Sample);
+        }
+        catch
+        {
+            return; // stats are informational only; never let them disturb the show
+        }
+        finally
+        {
+            _isSamplingSystemStats = false;
+        }
+
         var gpuText = stats.GpuAvailable ? $"{stats.GpuPercent:F0}%" : "n/d";
         SystemStatusText =
             $"CPU {stats.CpuPercent:F0}%  |  RAM {stats.RamUsedGb:F1}/{stats.RamTotalGb:F1} GB ({stats.RamPercent:F0}%)  |  GPU {gpuText}  |  LiveCue: CPU {stats.AppCpuPercent:F0}% RAM {stats.AppRamMb:F0} MB";
@@ -202,15 +226,11 @@ public class MainViewModel : INotifyPropertyChanged
         // wrong position/size even though the correct monitor was selected.
         var livePhysical = DisplayManager.GetDisplays();
 
-        if (!string.IsNullOrEmpty(targetId))
-        {
-            var resolved = DisplayManager.ResolveBounds(targetId, livePhysical, VirtualDisplays);
-            if (resolved is not null) return resolved;
-        }
-
-        // No target set, or the target display/monitor is gone: fall back to the primary display.
-        var primary = livePhysical.FirstOrDefault(d => d.IsPrimary) ?? livePhysical.FirstOrDefault();
-        return primary is null ? null : new ScreenBounds(primary.X, primary.Y, primary.Width, primary.Height);
+        // When this returns null the player reports the cue as not played (CueFailed).
+        var bounds = DisplayManager.ResolveOutputBounds(targetId, livePhysical, VirtualDisplays, out var warning);
+        if (bounds is not null && warning is not null)
+            StatusMessage = $"Attenzione: {warning}.";
+        return bounds;
     }
 
     private void RefreshDisplays()
@@ -387,17 +407,108 @@ public class MainViewModel : INotifyPropertyChanged
             CueList.Cues.Remove(cue);
     }
 
+    // --- Unsaved-changes tracking ---
+
+    private bool _isDirty;
+    /// <summary>True when the show has changes not yet saved to its project file.</summary>
+    public bool IsDirty
+    {
+        get => _isDirty;
+        private set
+        {
+            if (SetField(ref _isDirty, value))
+                OnPropertyChanged(nameof(WindowTitle));
+        }
+    }
+
+    public string WindowTitle =>
+        $"LiveCue - {(_currentProjectPath is null ? "Nuovo progetto" : Path.GetFileNameWithoutExtension(_currentProjectPath))}{(IsDirty ? " *" : "")}";
+
+    // Live/derived values that change on their own and are not part of the saved show.
+    private static readonly HashSet<string> UntrackedCueProperties = new() { nameof(Cue.Duration), nameof(Cue.RemainingTime) };
+
+    private readonly HashSet<Cue> _trackedCues = new();
+    private readonly HashSet<VirtualDisplay> _trackedVirtualDisplays = new();
+
+    private void StartChangeTracking()
+    {
+        CueList.Cues.CollectionChanged += (_, _) =>
+        {
+            SyncTracked(_trackedCues, CueList.Cues, OnCuePropertyChanged);
+            IsDirty = true;
+        };
+        VirtualDisplays.CollectionChanged += (_, _) =>
+        {
+            SyncTracked(_trackedVirtualDisplays, VirtualDisplays, OnVirtualDisplayPropertyChanged);
+            IsDirty = true;
+        };
+    }
+
+    /// <summary>Keeps exactly the current items subscribed (handles Clear/Reset, where the removed items aren't reported).</summary>
+    private static void SyncTracked<T>(HashSet<T> tracked, IEnumerable<T> current, PropertyChangedEventHandler handler) where T : INotifyPropertyChanged
+    {
+        var currentSet = current.ToHashSet();
+        foreach (var item in tracked.Except(currentSet).ToList())
+        {
+            item.PropertyChanged -= handler;
+            tracked.Remove(item);
+        }
+        foreach (var item in currentSet.Where(tracked.Add))
+            item.PropertyChanged += handler;
+    }
+
+    private void OnCuePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!UntrackedCueProperties.Contains(e.PropertyName ?? "")) IsDirty = true;
+    }
+
+    private void OnVirtualDisplayPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(VirtualDisplay.Label)) IsDirty = true;
+    }
+
+    private void SetCurrentProject(string? path)
+    {
+        _currentProjectPath = path;
+        IsDirty = false;
+        OnPropertyChanged(nameof(WindowTitle));
+    }
+
+    /// <summary>
+    /// Asks whether to save unsaved changes before they'd be lost (New, Open, closing the app).
+    /// </summary>
+    /// <returns>false if the user cancelled, or the save failed/was cancelled: abort the operation.</returns>
+    public bool ConfirmDiscardChanges()
+    {
+        if (!IsDirty) return true;
+
+        var answer = MessageBox.Show(
+            "Ci sono modifiche non salvate. Vuoi salvarle prima di continuare?",
+            "LiveCue", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+        return answer switch
+        {
+            MessageBoxResult.Yes => SaveProject(),
+            MessageBoxResult.No => true,
+            _ => false,
+        };
+    }
+
+    // --- Project commands ---
+
     private void NewProject()
     {
+        if (!ConfirmDiscardChanges()) return;
+
         Engine.Panic();
         CueList.Cues.Clear();
         CueList.Name = "Cue List 1";
         CueList.SelectedIndex = -1;
-        _currentProjectPath = null;
+        SetCurrentProject(null);
         StatusMessage = "Nuovo progetto.";
     }
 
-    private void SaveProject()
+    /// <returns>true if the project was saved.</returns>
+    private bool SaveProject()
     {
         var dialog = new SaveFileDialog
         {
@@ -405,15 +516,28 @@ public class MainViewModel : INotifyPropertyChanged
             Filter = "Progetto LiveCue|*.livecue|Tutti i file|*.*",
             FileName = _currentProjectPath is null ? "Progetto.livecue" : Path.GetFileName(_currentProjectPath),
         };
-        if (dialog.ShowDialog() != true) return;
+        if (dialog.ShowDialog() != true) return false;
 
-        ProjectFile.Save(CueList, dialog.FileName);
-        _currentProjectPath = dialog.FileName;
+        try
+        {
+            ProjectFile.Save(CueList, VirtualDisplays, dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+            MessageBox.Show($"Impossibile salvare il progetto:\n{ex.Message}", "LiveCue", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+
+        SetCurrentProject(dialog.FileName);
         StatusMessage = $"Progetto salvato in {dialog.FileName}";
+        return true;
     }
 
     private void LoadProject()
     {
+        if (!ConfirmDiscardChanges()) return;
+
         var dialog = new OpenFileDialog
         {
             Title = "Apri progetto",
@@ -421,20 +545,37 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() != true) return;
 
-        ProjectFile.Load(CueList, dialog.FileName);
-        _currentProjectPath = dialog.FileName;
+        CancelEditVirtualDisplay();
+        try
+        {
+            ProjectFile.Load(CueList, VirtualDisplays, dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            // Load only replaces the current show once the file has been fully read and parsed,
+            // so a corrupt file leaves what was open untouched.
+            App.LogError(ex);
+            MessageBox.Show($"Impossibile aprire il progetto (file danneggiato o non valido):\n{ex.Message}",
+                "LiveCue", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        SetCurrentProject(dialog.FileName);
         StatusMessage = $"Progetto caricato da {dialog.FileName}";
+
+        var missing = CueList.Cues.OfType<MediaCue>().Count(c => !File.Exists(c.FilePath));
+        if (missing > 0)
+            StatusMessage += $" — ATTENZIONE: {missing} file multimediali non trovati.";
 
         // Older project files may predate the Duration field; backfill it for those cues.
         foreach (var cue in CueList.Cues)
         {
-            var filePath = cue switch { VideoCue v => v.FilePath, AudioCue a => a.FilePath, _ => null };
-            if (cue.Duration is null && filePath is not null)
-                _ = _player.LoadDurationAsync(cue, filePath);
+            if (cue.Duration is null && cue is MediaCue { FilePath.Length: > 0 } mediaCue)
+                _ = _player.LoadDurationAsync(cue, mediaCue.FilePath);
         }
     }
 
-    private string NextCueNumber() => (CueList.Cues.Count + 1).ToString();
+    private string NextCueNumber() => CueList.NextCueNumber();
 
     private void OnPropertyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
