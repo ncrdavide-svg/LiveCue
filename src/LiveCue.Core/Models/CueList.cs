@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 
 namespace LiveCue.Core.Models;
@@ -32,7 +33,14 @@ public class CueList : INotifyPropertyChanged
         // "Continue"/"start together" only make sense when there's a next cue to chain into -
         // the last cue in the list can never have one, so keep that invariant enforced here
         // rather than relying on every call site (UI, project load, ...) to remember it.
-        Cues.CollectionChanged += (_, _) => EnforceLastCueDoesNotContinue();
+        // Adds are skipped: appending never turns an existing cue into the last one, and
+        // enforcing it on every Add would wipe the ContinueMode of each cue while a project
+        // is being loaded one cue at a time (each one is briefly "the last" as it's added).
+        Cues.CollectionChanged += (_, e) =>
+        {
+            if (e.Action != NotifyCollectionChangedAction.Add)
+                EnforceLastCueDoesNotContinue();
+        };
     }
 
     private void EnforceLastCueDoesNotContinue()

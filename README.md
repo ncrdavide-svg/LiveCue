@@ -1,0 +1,36 @@
+# LiveCue
+
+App di show control per Windows in stile QLab: una lista di cue audio e video da lanciare con **GO**, con uscite video su più monitor (anche "monitor virtuali", cioè zone di uno schermo reale) e un pulsante **PANIC** (ESC) che ferma tutto.
+
+## Requisiti
+
+- Windows 10/11
+- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+
+LibVLC è incluso tramite NuGet: non serve installare VLC.
+
+## Avvio
+
+```
+dotnet run --project src/LiveCue.App
+```
+
+## Test
+
+```
+dotnet test
+```
+
+## Struttura
+
+| Progetto | Contenuto |
+|---|---|
+| `src/LiveCue.Core` | Modelli (cue, lista, monitor virtuali) e servizi: `CueEngine` (GO, pre/post-wait, Continua / Parti insieme), `DisplayManager` (monitor e risoluzioni via Win32), `ProjectFile` (salvataggio `.livecue`), `SystemMonitor` (CPU/RAM/GPU). Nessuna dipendenza da WPF o LibVLC. |
+| `src/LiveCue.App` | Interfaccia WPF e riproduzione con LibVLC (`MediaPlayerCuePlayer`), una finestra di uscita per ogni cue video, anteprima live dei monitor via DWM. |
+| `tests/LiveCue.Core.Tests` | Test xUnit della logica di `LiveCue.Core`. |
+
+## Note d'uso
+
+- **Continua**: finita la cue, parte la successiva. Se la cue è in **Loop**, la successiva parte alla fine del primo giro e la cue continua a girare finché non la fermi.
+- **Parti insieme**: la cue successiva parte subito, insieme a questa.
+- I file `.livecue` salvano anche i monitor virtuali, e i percorsi dei media relativi al file di progetto: tieni progetto e media nella stessa cartella e potrai spostarla o copiarla su un altro PC.

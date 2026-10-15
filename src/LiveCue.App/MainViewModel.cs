@@ -407,7 +407,7 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() != true) return;
 
-        ProjectFile.Save(CueList, dialog.FileName);
+        ProjectFile.Save(CueList, VirtualDisplays, dialog.FileName);
         _currentProjectPath = dialog.FileName;
         StatusMessage = $"Progetto salvato in {dialog.FileName}";
     }
@@ -421,16 +421,16 @@ public class MainViewModel : INotifyPropertyChanged
         };
         if (dialog.ShowDialog() != true) return;
 
-        ProjectFile.Load(CueList, dialog.FileName);
+        CancelEditVirtualDisplay();
+        ProjectFile.Load(CueList, VirtualDisplays, dialog.FileName);
         _currentProjectPath = dialog.FileName;
         StatusMessage = $"Progetto caricato da {dialog.FileName}";
 
         // Older project files may predate the Duration field; backfill it for those cues.
         foreach (var cue in CueList.Cues)
         {
-            var filePath = cue switch { VideoCue v => v.FilePath, AudioCue a => a.FilePath, _ => null };
-            if (cue.Duration is null && filePath is not null)
-                _ = _player.LoadDurationAsync(cue, filePath);
+            if (cue.Duration is null && cue is MediaCue { FilePath.Length: > 0 } mediaCue)
+                _ = _player.LoadDurationAsync(cue, mediaCue.FilePath);
         }
     }
 

@@ -60,17 +60,19 @@ public class CueEngine
 
     private async Task ExecuteCueAsync(Cue cue, CancellationToken ct)
     {
+        // The next cue to chain into is always looked up by list position, never by re-reading
+        // CueList.SelectedCue: if this is the last cue, there IS no next one, and SelectedCue
+        // would otherwise still point at this same cue — chaining into "itself" forever.
+        // Selection moves on BEFORE the pre-wait, so a second GO pressed during the pre-wait
+        // fires the next cue instead of firing this one a second time.
+        var next = GetNextCue(cue);
+        if (next is not null)
+            _cueList.SelectedIndex = _cueList.Cues.IndexOf(next);
+
         if (cue.PreWait > TimeSpan.Zero)
             await Task.Delay(cue.PreWait, ct);
 
         var playTask = _player.PlayAsync(cue, ct);
-
-        // The next cue to chain into is always looked up by list position, never by re-reading
-        // CueList.SelectedCue: if this is the last cue, there IS no next one, and SelectedCue
-        // would otherwise still point at this same cue — chaining into "itself" forever.
-        var next = GetNextCue(cue);
-        if (next is not null)
-            _cueList.SelectedIndex = _cueList.Cues.IndexOf(next);
 
         switch (cue.ContinueMode)
         {

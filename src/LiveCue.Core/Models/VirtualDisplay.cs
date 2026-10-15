@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 
 namespace LiveCue.Core.Models;
 
@@ -10,7 +11,9 @@ namespace LiveCue.Core.Models;
 /// </summary>
 public class VirtualDisplay : INotifyPropertyChanged
 {
-    public string Id { get; } = "virtual:" + Guid.NewGuid();
+    // Persisted (and restored on load) so cues saved with this target stay linked to it.
+    [JsonInclude]
+    public string Id { get; private set; } = "virtual:" + Guid.NewGuid();
 
     private string _name = "Virtuale 1";
     public string Name { get => _name; set => SetField(ref _name, value); }
@@ -31,6 +34,7 @@ public class VirtualDisplay : INotifyPropertyChanged
     private int _height = 1080;
     public int Height { get => _height; set => SetField(ref _height, value); }
 
+    [JsonIgnore]
     public string Label => $"{Name} ({Width}x{Height} virtuale)";
 
     public event PropertyChangedEventHandler? PropertyChanged;

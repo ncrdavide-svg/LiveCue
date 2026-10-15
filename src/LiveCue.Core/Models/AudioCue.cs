@@ -1,15 +1,6 @@
 namespace LiveCue.Core.Models;
 
-public class AudioCue : Cue
+public class AudioCue : MediaCue
 {
     public override CueType Type => CueType.Audio;
-
-    private string _filePath = string.Empty;
-    public string FilePath { get => _filePath; set => SetField(ref _filePath, value); }
-
-    private double _volume = 1.0;
-    public double Volume { get => _volume; set => SetField(ref _volume, value); }
-
-    private bool _loop;
-    public bool Loop { get => _loop; set => SetField(ref _loop, value); }
 }

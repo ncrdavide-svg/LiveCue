@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveCue.Core", "src\LiveCue
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveCue.App", "src\LiveCue.App\LiveCue.App.csproj", "{D629D7D9-4B12-4798-88E6-6313AB70AEC9}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{C32DEBDC-D7AA-4484-AF9E-064405F4A468}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveCue.Core.Tests", "tests\LiveCue.Core.Tests\LiveCue.Core.Tests.csproj", "{1C689D03-732C-469A-8651-498E0799E3BC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,6 +47,18 @@ Global
 		{D629D7D9-4B12-4798-88E6-6313AB70AEC9}.Release|x64.Build.0 = Release|Any CPU
 		{D629D7D9-4B12-4798-88E6-6313AB70AEC9}.Release|x86.ActiveCfg = Release|Any CPU
 		{D629D7D9-4B12-4798-88E6-6313AB70AEC9}.Release|x86.Build.0 = Release|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Debug|x64.Build.0 = Debug|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Debug|x86.Build.0 = Debug|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Release|x64.ActiveCfg = Release|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Release|x64.Build.0 = Release|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Release|x86.ActiveCfg = Release|Any CPU
+		{1C689D03-732C-469A-8651-498E0799E3BC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -50,5 +66,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{CCA5CCFA-DA3D-45D6-AE7B-425294612D91} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{D629D7D9-4B12-4798-88E6-6313AB70AEC9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{1C689D03-732C-469A-8651-498E0799E3BC} = {C32DEBDC-D7AA-4484-AF9E-064405F4A468}
 	EndGlobalSection
 EndGlobal

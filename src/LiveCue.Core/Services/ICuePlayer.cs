@@ -8,7 +8,11 @@ namespace LiveCue.Core.Services;
 /// </summary>
 public interface ICuePlayer
 {
-    /// <summary>Starts playback and completes when the cue finishes (or is stopped).</summary>
+    /// <summary>
+    /// Starts playback and completes when the cue reaches its end for the first time, or is
+    /// stopped. A looping cue keeps playing after the returned task completes (until stopped),
+    /// so a "Continua" cue that loops still hands off to the next cue after one pass.
+    /// </summary>
     Task PlayAsync(Cue cue, CancellationToken ct);
 
     void Stop(Cue cue);

@@ -17,6 +17,9 @@ namespace LiveCue.App;
 /// </summary>
 public class MediaPlayerCuePlayer : ICuePlayer
 {
+    /// <summary>A jump back in playback time larger than this means a looping cue just wrapped around.</summary>
+    private const long LoopWrapThresholdMs = 1000;
+
     private readonly LibVLC _libVlc;
     private readonly Func<string?, ScreenBounds?> _resolveBounds;
     private readonly Dictionary<Guid, MediaPlayer> _activePlayers = new();
@@ -34,12 +37,9 @@ public class MediaPlayerCuePlayer : ICuePlayer
         _resolveBounds = resolveBounds;
     }
 
-    public Task PlayAsync(Cue cue, CancellationToken ct) => cue switch
-    {
-        VideoCue v => PlayVideoAsync(v, ct),
-        AudioCue a => PlayAudioAsync(a, ct),
-        _ => Task.CompletedTask,
-    };
+    public Task PlayAsync(Cue cue, CancellationToken ct) => cue is MediaCue mediaCue
+        ? PlayMediaAsync(mediaCue, ct)
+        : Task.CompletedTask;
 
     public void Stop(Cue cue)
     {
@@ -49,6 +49,8 @@ public class MediaPlayerCuePlayer : ICuePlayer
 
     public void StopAll()
     {
+        // Each player's Stopped event then runs that cue's own cleanup (closing its window,
+        // disposing the player) — even for cues whose GO chain has already finished.
         foreach (var player in _activePlayers.Values.ToList())
             player.Stop();
 
@@ -70,94 +72,103 @@ public class MediaPlayerCuePlayer : ICuePlayer
             cue.Duration = TimeSpan.FromMilliseconds(media.Duration);
     }
 
-    private async Task PlayVideoAsync(VideoCue cue, CancellationToken ct)
+    /// <returns>A task that completes at the end of the first pass (see <see cref="ICuePlayer.PlayAsync"/>).</returns>
+    private Task PlayMediaAsync(MediaCue cue, CancellationToken ct)
     {
-        var bounds = _resolveBounds(cue.TargetDisplayId);
-        if (bounds is null) return;
+        VideoOutputWindow? window = null;
+        if (cue is VideoCue videoCue)
+        {
+            var bounds = _resolveBounds(videoCue.TargetDisplayId);
+            if (bounds is null) return Task.CompletedTask;
+            // Always a fresh window, even if another cue is already showing on the same screen:
+            // it becomes a new layer on top, the earlier cue keeps playing untouched underneath.
+            window = new VideoOutputWindow(bounds);
+        }
 
-        // Always a fresh window, even if another cue is already showing on the same screen:
-        // it becomes a new layer on top, the earlier cue keeps playing untouched underneath.
-        var window = new VideoOutputWindow(bounds);
         var media = new Media(_libVlc, new Uri(cue.FilePath));
         if (cue.Loop) media.AddOption(":input-repeat=65535");
-
         var player = new MediaPlayer(media) { Volume = ToVlcVolume(cue.Volume) };
-        window.Attach(player);
-        window.Show();
-        window.Activate(); // among same-Topmost windows, the most recently activated one is frontmost
-        _activePlayers[cue.Id] = player;
-        _activeWindows[cue.Id] = window;
-        TrackRemainingTime(player, cue);
-        VideoWindowOpened?.Invoke(cue.Id, window);
 
-        var tcs = new TaskCompletionSource();
-        player.EndReached += (_, _) => tcs.TrySetResult();
-        using var registration = ct.Register(() =>
-        {
-            player.Stop();
-            tcs.TrySetResult();
-        });
+        // Continuations must not run inline on LibVLC's event thread (calling back into the
+        // player from there can deadlock), hence RunContinuationsAsynchronously.
+        var firstPassDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        try
+        void Complete()
         {
-            player.Play();
-            await tcs.Task;
+            firstPassDone.TrySetResult();
+            finished.TrySetResult();
         }
-        finally
-        {
-            _activePlayers.Remove(cue.Id);
-            _activeWindows.Remove(cue.Id);
-            cue.RemainingTime = null;
-            VideoWindowClosed?.Invoke(cue.Id);
-            window.Detach();
-            window.Close();
-            player.Dispose();
-            media.Dispose();
-        }
-    }
 
-    private async Task PlayAudioAsync(AudioCue cue, CancellationToken ct)
-    {
-        var media = new Media(_libVlc, new Uri(cue.FilePath));
-        if (cue.Loop) media.AddOption(":input-repeat=65535");
+        player.EndReached += (_, _) => Complete();
+        // Stop()/StopAll()/PANIC: VLC raises Stopped, not EndReached.
+        player.Stopped += (_, _) => Complete();
 
-        var player = new MediaPlayer(media) { Volume = ToVlcVolume(cue.Volume) };
-        _activePlayers[cue.Id] = player;
-        TrackRemainingTime(player, cue);
-
-        var tcs = new TaskCompletionSource();
-        player.EndReached += (_, _) => tcs.TrySetResult();
-        using var registration = ct.Register(() =>
-        {
-            player.Stop();
-            tcs.TrySetResult();
-        });
-
-        try
-        {
-            player.Play();
-            await tcs.Task;
-        }
-        finally
-        {
-            _activePlayers.Remove(cue.Id);
-            cue.RemainingTime = null;
-            player.Dispose();
-            media.Dispose();
-        }
-    }
-
-    /// <summary>Keeps Cue.RemainingTime updated live while this player is playing (marshalled to the UI thread).</summary>
-    private static void TrackRemainingTime(MediaPlayer player, Cue cue)
-    {
+        long lastTimeMs = 0;
         player.TimeChanged += (_, args) =>
         {
+            if (cue.Loop && args.Time + LoopWrapThresholdMs < lastTimeMs)
+                firstPassDone.TrySetResult();
+            lastTimeMs = args.Time;
+
             var length = player.Length;
             if (length <= 0) return;
-
             var remaining = TimeSpan.FromMilliseconds(Math.Max(0, length - args.Time));
             Application.Current?.Dispatcher.BeginInvoke(() => cue.RemainingTime = remaining);
         };
+
+        _activePlayers[cue.Id] = player;
+        if (window is not null)
+        {
+            window.Attach(player);
+            window.Show();
+            window.Activate(); // among same-Topmost windows, the most recently activated one is frontmost
+            _activeWindows[cue.Id] = window;
+            VideoWindowOpened?.Invoke(cue.Id, window);
+        }
+
+        _ = RunUntilFinishedAsync(cue, player, media, window, finished.Task, Complete, ct);
+        player.Play();
+        return firstPassDone.Task;
+    }
+
+    /// <summary>Owns the player for its whole life (which, for a loop, outlasts the first pass) and cleans up at the end.</summary>
+    private async Task RunUntilFinishedAsync(MediaCue cue, MediaPlayer player, Media media, VideoOutputWindow? window, Task finished, Action complete, CancellationToken ct)
+    {
+        // Complete explicitly too: if the token is already cancelled, Stop() runs before
+        // Play() and VLC never raises Stopped.
+        using var registration = ct.Register(() =>
+        {
+            player.Stop();
+            complete();
+        });
+        try
+        {
+            await finished;
+        }
+        finally
+        {
+            // Only unregister if a later GO of this same cue hasn't already replaced us.
+            if (_activePlayers.TryGetValue(cue.Id, out var current) && current == player)
+            {
+                _activePlayers.Remove(cue.Id);
+                cue.RemainingTime = null;
+            }
+
+            if (window is not null)
+            {
+                if (_activeWindows.TryGetValue(cue.Id, out var currentWindow) && currentWindow == window)
+                {
+                    _activeWindows.Remove(cue.Id);
+                    VideoWindowClosed?.Invoke(cue.Id);
+                }
+                window.Detach();
+                window.Close();
+            }
+
+            player.Dispose();
+            media.Dispose();
+        }
     }
 
     private static int ToVlcVolume(double volume01) => (int)Math.Clamp(volume01 * 100, 0, 100);
