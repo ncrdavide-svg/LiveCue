@@ -1,4 +1,4 @@
-﻿; Inno Setup script for LiveCue.
+; Inno Setup script for LiveCue.
 ; Build with installer\build-installer.ps1 (publishes the app, then compiles this script).
 ; The app is published self-contained, so target PCs need neither .NET nor VLC installed.
 
@@ -19,6 +19,7 @@ AppPublisher=LiveCue
 DefaultDirName={autopf}\LiveCue
 DefaultGroupName=LiveCue
 DisableProgramGroupPage=yes
+SetupIconFile=..\src\LiveCue.App\Assets\LiveCue.ico
 UninstallDisplayIcon={app}\LiveCue.exe
 OutputDir=..\artifacts\installer
 OutputBaseFilename=LiveCue-Setup-{#AppVersion}
