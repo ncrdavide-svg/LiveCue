@@ -51,6 +51,20 @@ public class CueList : INotifyPropertyChanged
             last.ContinueMode = ContinueMode.DoNotContinue;
     }
 
+    /// <summary>
+    /// Number for a newly added cue: one more than the highest whole number in use. Using
+    /// "count + 1" instead produced duplicates after a deletion (1, 3 → new cue "3").
+    /// Non-numeric numbers ("2A", "intro") are ignored.
+    /// </summary>
+    public string NextCueNumber()
+    {
+        var highest = Cues
+            .Select(c => int.TryParse(c.Number, out var n) ? n : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+        return (highest + 1).ToString();
+    }
+
     public Cue? NextCue()
     {
         var next = SelectedIndex + 1;

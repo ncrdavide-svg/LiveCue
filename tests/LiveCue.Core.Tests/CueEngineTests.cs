@@ -78,6 +78,60 @@ public class CueEngineTests
     }
 
     [Fact]
+    public async Task Go_OnDisarmedCue_FiresNextArmedCue()
+    {
+        var disarmed = Audio("1");
+        disarmed.IsArmed = false;
+        var (list, player, engine) = Create(disarmed, Audio("2"), Audio("3"));
+
+        await engine.GoAsync();
+
+        Assert.Equal(new[] { list.Cues[1] }, player.Played);
+        Assert.Equal(2, list.SelectedIndex);
+    }
+
+    [Fact]
+    public async Task Chain_SkipsDisarmedCue()
+    {
+        var disarmed = Audio("2");
+        disarmed.IsArmed = false;
+        var (list, player, engine) = Create(Audio("1", ContinueMode.StartTogether), disarmed, Audio("3"));
+
+        await engine.GoAsync();
+
+        Assert.Equal(new[] { list.Cues[0], list.Cues[2] }, player.Played);
+    }
+
+    [Fact]
+    public async Task Go_WithOnlyDisarmedCuesLeft_DoesNothing()
+    {
+        var disarmed = Audio("1");
+        disarmed.IsArmed = false;
+        var (_, player, engine) = Create(disarmed);
+
+        await engine.GoAsync();
+
+        Assert.Empty(player.Played);
+    }
+
+    [Fact]
+    public void NextCueNumber_NeverDuplicatesAfterDeletion()
+    {
+        var (list, _, _) = Create(Audio("1"), Audio("2"), Audio("3"));
+        list.Cues.RemoveAt(1);
+
+        Assert.Equal("4", list.NextCueNumber());
+    }
+
+    [Fact]
+    public void NextCueNumber_IgnoresNonNumericNumbers()
+    {
+        var (list, _, _) = Create(Audio("intro"), Audio("2A"), Audio("7"));
+        Assert.Equal("8", list.NextCueNumber());
+        Assert.Equal("1", new CueList().NextCueNumber());
+    }
+
+    [Fact]
     public async Task LastCue_NeverChainsIntoItself()
     {
         var (list, player, engine) = Create(Audio("1"));

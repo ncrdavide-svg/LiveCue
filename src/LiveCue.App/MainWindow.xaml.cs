@@ -22,6 +22,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = new MainViewModel();
+        Closing += (_, e) =>
+        {
+            if (!ViewModel.ConfirmDiscardChanges())
+                e.Cancel = true;
+        };
     }
 
     private void OpenMonitorManager_Click(object sender, RoutedEventArgs e)

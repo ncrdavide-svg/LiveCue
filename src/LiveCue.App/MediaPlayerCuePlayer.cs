@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using LibVLCSharp.Shared;
 using LiveCue.Core.Models;
@@ -30,6 +31,13 @@ public class MediaPlayerCuePlayer : ICuePlayer
 
     /// <summary>Fired right before a cue's video output window is closed.</summary>
     public event Action<Guid>? VideoWindowClosed;
+
+    /// <summary>
+    /// Fired when a cue can't be played (missing file, no output screen, VLC error). The cue is
+    /// then treated as finished, so a "Continua" chain moves on instead of hanging.
+    /// May be raised from a LibVLC thread.
+    /// </summary>
+    public event Action<Cue, string>? CueFailed;
 
     public MediaPlayerCuePlayer(LibVLC libVlc, Func<string?, ScreenBounds?> resolveBounds)
     {
@@ -66,20 +74,38 @@ public class MediaPlayerCuePlayer : ICuePlayer
     /// </summary>
     public async Task LoadDurationAsync(Cue cue, string filePath)
     {
-        using var media = new Media(_libVlc, new Uri(filePath));
-        var status = await media.Parse(MediaParseOptions.ParseLocal);
-        if (status == MediaParsedStatus.Done && media.Duration > 0)
-            cue.Duration = TimeSpan.FromMilliseconds(media.Duration);
+        if (!File.Exists(filePath)) return;
+        try
+        {
+            using var media = new Media(_libVlc, new Uri(filePath));
+            var status = await media.Parse(MediaParseOptions.ParseLocal);
+            if (status == MediaParsedStatus.Done && media.Duration > 0)
+                cue.Duration = TimeSpan.FromMilliseconds(media.Duration);
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex); // the duration is informational; never fail because of it
+        }
     }
 
     /// <returns>A task that completes at the end of the first pass (see <see cref="ICuePlayer.PlayAsync"/>).</returns>
     private Task PlayMediaAsync(MediaCue cue, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(cue.FilePath) || !File.Exists(cue.FilePath))
+        {
+            CueFailed?.Invoke(cue, $"file non trovato: {cue.FilePath}");
+            return Task.CompletedTask;
+        }
+
         VideoOutputWindow? window = null;
         if (cue is VideoCue videoCue)
         {
             var bounds = _resolveBounds(videoCue.TargetDisplayId);
-            if (bounds is null) return Task.CompletedTask;
+            if (bounds is null)
+            {
+                CueFailed?.Invoke(cue, "schermo di uscita non trovato e nessun monitor secondario collegato");
+                return Task.CompletedTask;
+            }
             // Always a fresh window, even if another cue is already showing on the same screen:
             // it becomes a new layer on top, the earlier cue keeps playing untouched underneath.
             window = new VideoOutputWindow(bounds);
@@ -103,6 +129,13 @@ public class MediaPlayerCuePlayer : ICuePlayer
         player.EndReached += (_, _) => Complete();
         // Stop()/StopAll()/PANIC: VLC raises Stopped, not EndReached.
         player.Stopped += (_, _) => Complete();
+        // Unreadable/corrupt media: VLC raises neither of the above. Without this the output
+        // window would stay black on screen and a "Continua" chain would hang forever.
+        player.EncounteredError += (_, _) =>
+        {
+            CueFailed?.Invoke(cue, $"VLC non riesce a riprodurre {Path.GetFileName(cue.FilePath)}");
+            Complete();
+        };
 
         long lastTimeMs = 0;
         player.TimeChanged += (_, args) =>

@@ -108,11 +108,46 @@ public static class DisplayManager
         var virtualDisplay = virtualDisplays.FirstOrDefault(v => v.Id == targetId);
         if (virtualDisplay is not null)
         {
-            var host = physicalList.FirstOrDefault(d => d.DeviceName == virtualDisplay.HostDeviceName) ?? physicalList.FirstOrDefault();
+            // No silent fallback to "any" monitor here: that would usually be the primary one.
+            var host = physicalList.FirstOrDefault(d => d.DeviceName == virtualDisplay.HostDeviceName);
             if (host is null) return null;
             return new ScreenBounds(host.X + virtualDisplay.OffsetX, host.Y + virtualDisplay.OffsetY, virtualDisplay.Width, virtualDisplay.Height);
         }
 
+        return null;
+    }
+
+    /// <summary>
+    /// Where a video cue should actually play. If its target is gone (projector unplugged, or
+    /// renumbered by Windows after re-plugging), falls back to the first secondary monitor —
+    /// but NEVER to the primary one: that's the operator's screen, and a topmost fullscreen
+    /// video there would hide the cue list mid-show. Returns null (cue not played) instead.
+    /// A cue with no target at all plays on the primary monitor (single-screen rehearsal).
+    /// </summary>
+    /// <param name="warning">Set when the cue's own target couldn't be used; null otherwise.</param>
+    public static ScreenBounds? ResolveOutputBounds(string? targetId, IEnumerable<DisplayInfo> physicalDisplays,
+        IEnumerable<VirtualDisplay> virtualDisplays, out string? warning)
+    {
+        warning = null;
+        var physicalList = physicalDisplays as IReadOnlyList<DisplayInfo> ?? physicalDisplays.ToList();
+
+        if (string.IsNullOrEmpty(targetId))
+        {
+            var primary = physicalList.FirstOrDefault(d => d.IsPrimary) ?? physicalList.FirstOrDefault();
+            return primary is null ? null : new ScreenBounds(primary.X, primary.Y, primary.Width, primary.Height);
+        }
+
+        var resolved = ResolveBounds(targetId, physicalList, virtualDisplays);
+        if (resolved is not null) return resolved;
+
+        var secondary = physicalList.FirstOrDefault(d => !d.IsPrimary);
+        if (secondary is not null)
+        {
+            warning = $"schermo della cue non trovato, uso {secondary.Label}";
+            return new ScreenBounds(secondary.X, secondary.Y, secondary.Width, secondary.Height);
+        }
+
+        warning = "schermo della cue non trovato e nessun monitor secondario collegato";
         return null;
     }
 

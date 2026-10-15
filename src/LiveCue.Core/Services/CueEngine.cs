@@ -28,8 +28,10 @@ public class CueEngine
     /// </summary>
     public async Task GoAsync()
     {
-        var cue = _cueList.SelectedCue ?? (_cueList.Cues.Count > 0 ? _cueList.Cues[0] : null);
-        if (cue is null || !cue.IsArmed) return;
+        // A disarmed selected cue is skipped (GO fires the next armed one) instead of making
+        // GO silently do nothing and leaving the operator stuck on it.
+        var cue = FirstArmedFrom(Math.Max(0, _cueList.SelectedIndex));
+        if (cue is null) return;
 
         var cts = new CancellationTokenSource();
         _activeRuns.Add(cts);
@@ -99,9 +101,19 @@ public class CueEngine
         }
     }
 
+    /// <summary>The next ARMED cue after this one: disarmed cues are skipped as if not in the list.</summary>
     private Cue? GetNextCue(Cue cue)
     {
         var idx = _cueList.Cues.IndexOf(cue);
-        return idx >= 0 && idx + 1 < _cueList.Cues.Count ? _cueList.Cues[idx + 1] : null;
+        return idx < 0 ? null : FirstArmedFrom(idx + 1);
+    }
+
+    private Cue? FirstArmedFrom(int index)
+    {
+        for (var i = Math.Max(0, index); i < _cueList.Cues.Count; i++)
+        {
+            if (_cueList.Cues[i].IsArmed) return _cueList.Cues[i];
+        }
+        return null;
     }
 }
