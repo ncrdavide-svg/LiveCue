@@ -47,6 +47,8 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand ApplyResolutionCommand { get; }
     public RelayCommand CreateVirtualDisplayCommand { get; }
     public RelayCommand CancelEditVirtualDisplayCommand { get; }
+    public RelayCommand ApplyMonitorRenameCommand { get; }
+    public RelayCommand CancelMonitorRenameCommand { get; }
     public RelayCommand SaveProjectCommand { get; }
     public RelayCommand LoadProjectCommand { get; }
     public RelayCommand NewProjectCommand { get; }
@@ -56,6 +58,11 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly DispatcherTimer _systemMonitorTimer;
     private bool _isSamplingSystemStats;
     private string? _currentProjectPath;
+
+    /// <summary>User-given display names, keyed by DisplayInfo.DeviceName — Windows' own EDID name
+    /// (e.g. "Generic PnP Monitor") is often useless for telling two monitors apart at a glance.</summary>
+    private readonly Dictionary<string, string> _monitorNameOverrides = new();
+    private DisplayInfo? _renamingDisplay;
 
     private DisplayInfo? _selectedDisplayForResolution;
     public DisplayInfo? SelectedDisplayForResolution
@@ -133,6 +140,20 @@ public class MainViewModel : INotifyPropertyChanged
         private set => SetField(ref _virtualDisplayFormButtonText, value);
     }
 
+    private bool _isRenamingMonitor;
+    public bool IsRenamingMonitor
+    {
+        get => _isRenamingMonitor;
+        private set => SetField(ref _isRenamingMonitor, value);
+    }
+
+    private string _renameMonitorText = "";
+    public string RenameMonitorText
+    {
+        get => _renameMonitorText;
+        set => SetField(ref _renameMonitorText, value);
+    }
+
     private string _statusMessage = "";
     public string StatusMessage
     {
@@ -169,6 +190,8 @@ public class MainViewModel : INotifyPropertyChanged
         CreateVirtualDisplayCommand = new RelayCommand(CreateVirtualDisplay,
             () => NewVirtualHostDisplay is not null && NewVirtualWidth > 0 && NewVirtualHeight > 0);
         CancelEditVirtualDisplayCommand = new RelayCommand(CancelEditVirtualDisplay);
+        ApplyMonitorRenameCommand = new RelayCommand(ApplyMonitorRename, () => _renamingDisplay is not null);
+        CancelMonitorRenameCommand = new RelayCommand(CancelRenameMonitor);
         SaveProjectCommand = new RelayCommand(() => SaveProject());
         LoadProjectCommand = new RelayCommand(LoadProject);
         NewProjectCommand = new RelayCommand(NewProject);
@@ -239,11 +262,46 @@ public class MainViewModel : INotifyPropertyChanged
 
         Displays.Clear();
         foreach (var display in DisplayManager.GetDisplays())
-            Displays.Add(display);
+        {
+            // Windows' own EDID name ("Generic PnP Monitor"...) is often useless for telling two
+            // monitors apart at a glance; a renamed display keeps its custom name across refreshes.
+            var named = _monitorNameOverrides.TryGetValue(display.DeviceName, out var customName)
+                ? display with { MonitorName = customName }
+                : display;
+            Displays.Add(named);
+        }
 
         SelectedDisplayForResolution = Displays.FirstOrDefault(d => d.DeviceName == previouslySelectedDevice)
             ?? Displays.FirstOrDefault();
         NewVirtualHostDisplay ??= Displays.FirstOrDefault();
+    }
+
+    /// <summary>Loads a monitor's current name into the rename form so it can be changed and saved.</summary>
+    public void BeginRenameMonitor(DisplayInfo display)
+    {
+        _renamingDisplay = display;
+        RenameMonitorText = display.MonitorName;
+        IsRenamingMonitor = true;
+    }
+
+    private void ApplyMonitorRename()
+    {
+        if (_renamingDisplay is null) return;
+
+        if (string.IsNullOrWhiteSpace(RenameMonitorText))
+            _monitorNameOverrides.Remove(_renamingDisplay.DeviceName);
+        else
+            _monitorNameOverrides[_renamingDisplay.DeviceName] = RenameMonitorText.Trim();
+
+        CancelRenameMonitor();
+        RefreshDisplays();
+    }
+
+    private void CancelRenameMonitor()
+    {
+        _renamingDisplay = null;
+        RenameMonitorText = "";
+        IsRenamingMonitor = false;
     }
 
     private void RefreshAvailableModes()

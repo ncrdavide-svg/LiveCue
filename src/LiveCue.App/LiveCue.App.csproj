@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\LiveCue.ico" />
+    <Resource Include="Assets\LiveCue.png" />
   </ItemGroup>
 
   <PropertyGroup>

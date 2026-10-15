@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using LibVLCSharp.Shared;
@@ -36,26 +35,18 @@ public partial class VideoOutputWindow : Window
         SourceInitialized += (_, _) =>
         {
             HwndSource.FromHwnd(Handle)?.AddHook(WndProc);
-            SetNoActivate();
+            // WPF's ShowActivated/Focusable only govern activation WPF itself triggers — LibVLC's
+            // video surface is a native child window that can call SetForegroundWindow on its own
+            // as playback starts, stealing keyboard focus from the main window regardless of those
+            // properties. Was: if a cue's screen is the one the operator's own window is on, the
+            // video (topmost, fullscreen) would take focus and the operator couldn't click past it
+            // OR use the ESC/PANIC shortcut to get out, since ESC no longer reached the main window
+            // at all. WS_EX_NOACTIVATE is enforced at the Win32 level, so nothing — WPF or native —
+            // can activate this window; the main window always keeps keyboard focus.
+            Win32WindowPlacement.SetNoActivate(Handle);
             ApplyBounds();
         };
         Loaded += (_, _) => ApplyBounds();
-    }
-
-    /// <summary>
-    /// WPF's ShowActivated/Focusable only govern activation WPF itself triggers — LibVLC's video
-    /// surface is a native child window that can call SetForegroundWindow on its own as playback
-    /// starts, stealing keyboard focus from the main window regardless of those properties. Was:
-    /// if a cue's screen is the one the operator's own window is on, the video (topmost,
-    /// fullscreen) would take focus and the operator couldn't click past it OR use the ESC/PANIC
-    /// shortcut to get out, since ESC no longer reached the main window at all.
-    /// WS_EX_NOACTIVATE is enforced at the Win32 level, so nothing — WPF or native — can activate
-    /// this window; the main window always keeps keyboard focus.
-    /// </summary>
-    private void SetNoActivate()
-    {
-        var exStyle = GetWindowLongPtr(Handle, GWL_EXSTYLE);
-        SetWindowLongPtr(Handle, GWL_EXSTYLE, new IntPtr(exStyle.ToInt64() | WS_EX_NOACTIVATE));
     }
 
     public void MoveToDisplay(ScreenBounds bounds)
@@ -68,12 +59,7 @@ public partial class VideoOutputWindow : Window
 
     public void Detach() => VideoViewControl.MediaPlayer = null;
 
-    private void ApplyBounds()
-    {
-        var hwnd = Handle;
-        if (hwnd == IntPtr.Zero) return;
-        SetWindowPos(hwnd, IntPtr.Zero, Bounds.X, Bounds.Y, Bounds.Width, Bounds.Height, SWP_NOZORDER | SWP_NOACTIVATE);
-    }
+    private void ApplyBounds() => Win32WindowPlacement.ApplyPixelBounds(Handle, Bounds);
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
@@ -84,18 +70,4 @@ public partial class VideoOutputWindow : Window
             Dispatcher.BeginInvoke(ApplyBounds);
         return IntPtr.Zero;
     }
-
-    private const uint SWP_NOZORDER = 0x0004;
-    private const uint SWP_NOACTIVATE = 0x0010;
-    private const int GWL_EXSTYLE = -20;
-    private const long WS_EX_NOACTIVATE = 0x08000000;
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
-
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr", SetLastError = true)]
-    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
-
-    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", SetLastError = true)]
-    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 }
