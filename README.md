@@ -42,3 +42,7 @@ Crea `artifacts\installer\LiveCue-Setup-1.0.0.exe` (serve [Inno Setup 6](https:/
 - **Continua**: finita la cue, parte la successiva. Se la cue è in **Loop**, la successiva parte alla fine del primo giro e la cue continua a girare finché non la fermi.
 - **Parti insieme**: la cue successiva parte subito, insieme a questa.
 - I file `.livecue` salvano anche i monitor virtuali, e i percorsi dei media relativi al file di progetto: tieni progetto e media nella stessa cartella e potrai spostarla o copiarla su un altro PC.
+
+## Stato del progetto
+
+Cronologia del lavoro, cosa � stato corretto e prossimi passi: [docs/STATO-PROGETTO.md](docs/STATO-PROGETTO.md).
