@@ -21,6 +21,14 @@ dotnet run --project src/LiveCue.App
 dotnet test
 ```
 
+## Installer per altri PC
+
+```
+powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1 -Version 1.0.0
+```
+
+Crea `artifacts\installer\LiveCue-Setup-1.0.0.exe` (serve [Inno Setup 6](https://jrsoftware.org/isinfo.php): `winget install JRSoftware.InnoSetup`). Il setup contiene già .NET e VLC, quindi sui PC di destinazione non serve installare niente: funziona su Windows 10/11 a 64 bit (anche ARM64, in emulazione). Durante l'installazione si può scegliere "per tutti gli utenti" (richiede admin) o "solo per me".
+
 ## Struttura
 
 | Progetto | Contenuto |
