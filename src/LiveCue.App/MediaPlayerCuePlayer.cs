@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using LibVLCSharp.Shared;
@@ -150,6 +151,15 @@ public class MediaPlayerCuePlayer : ICuePlayer
             Application.Current?.Dispatcher.BeginInvoke(() => cue.RemainingTime = remaining);
         };
 
+        // Lets the "Volume" slider in the cue list fade a playing cue live, instead of only
+        // taking effect the next time it's fired.
+        void OnCuePropertyChanged(object? s, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(MediaCue.Volume))
+                player.Volume = ToVlcVolume(cue.Volume);
+        }
+        cue.PropertyChanged += OnCuePropertyChanged;
+
         _activePlayers[cue.Id] = player;
         if (window is not null)
         {
@@ -163,13 +173,14 @@ public class MediaPlayerCuePlayer : ICuePlayer
             VideoWindowOpened?.Invoke(cue.Id, window);
         }
 
-        _ = RunUntilFinishedAsync(cue, player, media, window, finished.Task, Complete, ct);
+        _ = RunUntilFinishedAsync(cue, player, media, window, finished.Task, Complete, OnCuePropertyChanged, ct);
         player.Play();
         return firstPassDone.Task;
     }
 
     /// <summary>Owns the player for its whole life (which, for a loop, outlasts the first pass) and cleans up at the end.</summary>
-    private async Task RunUntilFinishedAsync(MediaCue cue, MediaPlayer player, Media media, VideoOutputWindow? window, Task finished, Action complete, CancellationToken ct)
+    private async Task RunUntilFinishedAsync(MediaCue cue, MediaPlayer player, Media media, VideoOutputWindow? window,
+        Task finished, Action complete, PropertyChangedEventHandler onCuePropertyChanged, CancellationToken ct)
     {
         // Complete explicitly too: if the token is already cancelled, Stop() runs before
         // Play() and VLC never raises Stopped.
@@ -184,6 +195,8 @@ public class MediaPlayerCuePlayer : ICuePlayer
         }
         finally
         {
+            cue.PropertyChanged -= onCuePropertyChanged;
+
             // Only unregister if a later GO of this same cue hasn't already replaced us.
             if (_activePlayers.TryGetValue(cue.Id, out var current) && current == player)
             {

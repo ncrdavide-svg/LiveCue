@@ -7,6 +7,7 @@
         mc:Ignorable="d"
         Icon="/Assets/LiveCue.ico"
         Title="{Binding WindowTitle}" Height="650" Width="1100"
+        WindowState="Maximized"
         Background="#1E1E1E">
     <Window.Resources>
         <Style TargetType="Button">
@@ -132,6 +133,15 @@
                                       DisplayMemberPath="Label"
                                       SelectedValue="{Binding TargetDisplayId, UpdateSourceTrigger=PropertyChanged}"
                                       BorderThickness="0" Background="Transparent" Margin="2"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Volume" Width="110">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <!-- Live: dragging this while the cue is playing fades it in real time (see MediaPlayerCuePlayer). -->
+                            <Slider Minimum="0" Maximum="1" Value="{Binding Volume, UpdateSourceTrigger=PropertyChanged}"
+                                    VerticalAlignment="Center" Margin="4,0"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
