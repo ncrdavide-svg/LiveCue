@@ -34,6 +34,7 @@ Requisiti: .NET 9 SDK, Inno Setup 6 (`winget install JRSoftware.InnoSetup`).
 ## Insidie note (non reintrodurle)
 
 - **Coordinate:** l'app è Per-Monitor-V2 DPI aware. `DisplayInfo`/`ScreenBounds` sono pixel reali; le finestre di uscita si posizionano con `SetWindowPos`, non con Left/Top WPF.
+- **LibVLC — MAI `Stop()`/`Dispose()` sul thread UI:** bloccano finché VLC chiude l'uscita video, e VLC per farlo manda messaggi alla finestra video (thread UI) → deadlock. Riprodotto: 2 video a tutto schermo su 2 monitor + PANIC = app bloccata. Usare `StopOffUiThreadAsync` in `MediaPlayerCuePlayer`; la finestra si chiude solo dopo stop+dispose. Test di regressione manuale: harness descritto in `docs/STATO-PROGETTO.md` §5.
 - **LibVLC:** gli eventi arrivano su thread di VLC. Non chiamare il player da lì; usare `TaskCompletionSource` con `RunContinuationsAsynchronously` e il Dispatcher per la UI. Stop/PANIC generano `Stopped` (non `EndReached`); file illeggibili generano `EncounteredError`.
 - **`ICuePlayer.PlayAsync`** termina alla fine del *primo giro* (le cue in loop continuano dopo); su errore termina subito, così le catene "Continua" non si bloccano.
 - **Focus:** le finestre di uscita video (e ogni overlay a tutto schermo) devono avere `WS_EX_NOACTIVATE`: la superficie nativa di VLC altrimenti ruba il focus e l'operatore resta bloccato. Non chiamare `Activate()` su di esse.
