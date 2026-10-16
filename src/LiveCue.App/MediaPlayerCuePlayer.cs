@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using LibVLCSharp.Shared;
 using LiveCue.Core.Models;
@@ -22,8 +23,12 @@ public class MediaPlayerCuePlayer : ICuePlayer
     /// <summary>A jump back in playback time larger than this means a looping cue just wrapped around.</summary>
     private const long LoopWrapThresholdMs = 1000;
 
+    /// <summary>How often a Fade cue updates its target's live volume/window opacity while fading.</summary>
+    private static readonly TimeSpan FadeTickInterval = TimeSpan.FromMilliseconds(40);
+
     private readonly LibVLC _libVlc;
     private readonly Func<string?, ScreenBounds?> _resolveBounds;
+    private readonly CueList _cueList;
     private readonly Dictionary<Guid, MediaPlayer> _activePlayers = new();
     private readonly Dictionary<Guid, VideoOutputWindow> _activeWindows = new();
 
@@ -40,15 +45,19 @@ public class MediaPlayerCuePlayer : ICuePlayer
     /// </summary>
     public event Action<Cue, string>? CueFailed;
 
-    public MediaPlayerCuePlayer(LibVLC libVlc, Func<string?, ScreenBounds?> resolveBounds)
+    public MediaPlayerCuePlayer(LibVLC libVlc, Func<string?, ScreenBounds?> resolveBounds, CueList cueList)
     {
         _libVlc = libVlc;
         _resolveBounds = resolveBounds;
+        _cueList = cueList;
     }
 
-    public Task PlayAsync(Cue cue, CancellationToken ct) => cue is MediaCue mediaCue
-        ? PlayMediaAsync(mediaCue, ct)
-        : Task.CompletedTask;
+    public Task PlayAsync(Cue cue, CancellationToken ct) => cue switch
+    {
+        MediaCue mediaCue => PlayMediaAsync(mediaCue, ct),
+        FadeCue fadeCue => PlayFadeAsync(fadeCue, ct),
+        _ => Task.CompletedTask,
+    };
 
     public void Stop(Cue cue)
     {
@@ -254,6 +263,73 @@ public class MediaPlayerCuePlayer : ICuePlayer
             });
             _stopTasks.Remove(player);
             window?.Close();
+        }
+    }
+
+    /// <summary>
+    /// Fades a currently-playing cue's volume (and, for a video, its window's opacity) down to
+    /// nothing over the Fade cue's duration, then stops it. Reuses the live-volume wiring already
+    /// in <see cref="PlayMediaAsync"/> (it reacts to Cue.Volume changes on its own) rather than
+    /// touching the target's MediaPlayer directly, so a fade is just an animation of the model.
+    /// </summary>
+    private async Task PlayFadeAsync(FadeCue cue, CancellationToken ct)
+    {
+        var target = _cueList.Cues.FirstOrDefault(c => c.Number == cue.TargetCueNumber);
+        if (target is null)
+        {
+            CueFailed?.Invoke(cue, $"cue target \"{cue.TargetCueNumber}\" non trovata");
+            return;
+        }
+        if (target is not MediaCue targetMedia)
+        {
+            CueFailed?.Invoke(cue, $"la cue target \"{cue.TargetCueNumber}\" non è audio/video");
+            return;
+        }
+        if (!_activePlayers.TryGetValue(target.Id, out var targetPlayer))
+        {
+            CueFailed?.Invoke(cue, $"la cue target \"{cue.TargetCueNumber}\" non è in riproduzione");
+            return;
+        }
+
+        _activeWindows.TryGetValue(target.Id, out var targetWindow);
+
+        var duration = TimeSpan.FromSeconds(Math.Max(0, cue.FadeSeconds));
+        var startVolume = targetMedia.Volume;
+        var startOpacity = targetWindow?.Opacity ?? 1.0;
+        var start = DateTime.UtcNow;
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                // The target may have ended, been stopped, or been re-fired independently while
+                // we were fading it - either way there's nothing left of this playback to fade.
+                if (!_activePlayers.TryGetValue(target.Id, out var current) || current != targetPlayer)
+                    return;
+
+                var elapsed = DateTime.UtcNow - start;
+                if (elapsed >= duration) break;
+
+                var level = duration > TimeSpan.Zero ? 1 - elapsed.TotalSeconds / duration.TotalSeconds : 0;
+                targetMedia.Volume = startVolume * level;
+                if (_activeWindows.TryGetValue(target.Id, out var currentWindow) && currentWindow == targetWindow)
+                    currentWindow.Opacity = startOpacity * level;
+                cue.RemainingTime = duration - elapsed;
+
+                await Task.Delay(FadeTickInterval, ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // PANIC/Stop during the fade: fall through to the restore/cleanup below.
+        }
+        finally
+        {
+            cue.RemainingTime = null;
+            targetMedia.Volume = startVolume; // restore the cue's own level for the next time it plays
+
+            if (!ct.IsCancellationRequested && _activePlayers.TryGetValue(target.Id, out var current) && current == targetPlayer)
+                Stop(target); // fully silent/invisible now - stop it rather than leaving it stuck at zero
         }
     }
 
