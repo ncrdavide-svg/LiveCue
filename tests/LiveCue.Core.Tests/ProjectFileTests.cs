@@ -83,6 +83,23 @@ public sealed class ProjectFileTests : IDisposable
     }
 
     [Fact]
+    public void SaveLoad_RoundTripsStopCue()
+    {
+        var list = new CueList();
+        list.Cues.Add(new AudioCue { Number = "1", FilePath = Path.Combine(_dir, "music.wav") });
+        list.Cues.Add(new StopCue { Number = "2", Name = "Stop", TargetCueNumber = "1" });
+        var projectPath = Path.Combine(_dir, "show.livecue");
+
+        ProjectFile.Save(list, Array.Empty<VirtualDisplay>(), projectPath);
+
+        var loaded = new CueList();
+        ProjectFile.Load(loaded, new List<VirtualDisplay>(), projectPath);
+
+        var loadedStop = Assert.IsType<StopCue>(loaded.Cues[1]);
+        Assert.Equal("1", loadedStop.TargetCueNumber);
+    }
+
+    [Fact]
     public void Load_KeepsContinueModes()
     {
         var list = new CueList();
