@@ -62,6 +62,9 @@
                                             </TextBlock.Text>
                                         </TextBlock>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                            <!-- OneWay: this reflects RefreshDisplays()'s result, Click drives the actual toggle+refresh. -->
+                                            <CheckBox Content="Attivo" IsChecked="{Binding IsEnabled, Mode=OneWay}" Click="MonitorEnabled_Click"
+                                                      VerticalAlignment="Center" Margin="0,0,10,0"/>
                                             <Button Content="Test schermo" Click="ScreenTest_Click" Padding="6,3" FontSize="10"/>
                                             <Button Content="Rinomina" Click="RenameMonitor_Click" Padding="6,3" FontSize="10" Margin="6,4,0,4"/>
                                         </StackPanel>
@@ -109,7 +112,7 @@
                     <TextBox Text="{Binding NewVirtualDisplayName, UpdateSourceTrigger=PropertyChanged}"/>
 
                     <TextBlock Text="Monitor ospite" FontSize="11" Foreground="#999"/>
-                    <ComboBox ItemsSource="{Binding Displays}"
+                    <ComboBox ItemsSource="{Binding EnabledDisplays}"
                               SelectedItem="{Binding NewVirtualHostDisplay}"
                               DisplayMemberPath="Label"/>
 

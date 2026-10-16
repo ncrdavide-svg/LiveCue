@@ -15,6 +15,14 @@ public record DisplayInfo(string DeviceName, string MonitorName, int DisplayNumb
     /// <summary>Same as DeviceName — lets XAML bind "Id" uniformly across DisplayInfo and VirtualDisplay.</summary>
     public string Id => DeviceName;
 
+    /// <summary>
+    /// Operator preference, not an OS fact: whether this monitor should appear in the "pick a
+    /// target screen" lists (cue "Schermo" column, virtual-display host picker). Outside the
+    /// record's primary constructor so a `with` copy (used for the custom-name override) still
+    /// carries it, while GetDisplays()'s own fresh instances default to enabled.
+    /// </summary>
+    public bool IsEnabled { get; set; } = true;
+
     public string Label => $"Monitor {DisplayNumber}: {MonitorName}" + (IsPrimary ? " (primario)" : "");
 
     public override string ToString() => Label;

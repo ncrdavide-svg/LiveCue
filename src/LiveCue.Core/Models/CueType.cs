@@ -4,6 +4,7 @@ public enum CueType
 {
     Video,
     Audio,
+    Image,
     Fade,
     Group,
     Stop,

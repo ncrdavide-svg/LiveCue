@@ -7,6 +7,7 @@ namespace LiveCue.Core.Models;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$cueType")]
 [JsonDerivedType(typeof(VideoCue), "video")]
 [JsonDerivedType(typeof(AudioCue), "audio")]
+[JsonDerivedType(typeof(ImageCue), "image")]
 [JsonDerivedType(typeof(FadeCue), "fade")]
 public abstract class Cue : INotifyPropertyChanged
 {

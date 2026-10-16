@@ -62,6 +62,27 @@ public sealed class ProjectFileTests : IDisposable
     }
 
     [Fact]
+    public void SaveLoad_RoundTripsImageCue_WithRelativePath()
+    {
+        var list = new CueList();
+        list.Cues.Add(new ImageCue { Number = "1", Name = "Logo", FilePath = Path.Combine(_dir, "logo.png"), DisplaySeconds = 5 });
+        var projectPath = Path.Combine(_dir, "show.livecue");
+
+        ProjectFile.Save(list, Array.Empty<VirtualDisplay>(), projectPath);
+
+        var json = File.ReadAllText(projectPath);
+        Assert.Contains("logo.png", json);
+        Assert.DoesNotContain(_dir.Replace(@"\", @"\\"), json);
+
+        var loaded = new CueList();
+        ProjectFile.Load(loaded, new List<VirtualDisplay>(), projectPath);
+
+        var loadedImage = Assert.IsType<ImageCue>(loaded.Cues[0]);
+        Assert.Equal(Path.Combine(_dir, "logo.png"), loadedImage.FilePath);
+        Assert.Equal(5, loadedImage.DisplaySeconds);
+    }
+
+    [Fact]
     public void Load_KeepsContinueModes()
     {
         var list = new CueList();
