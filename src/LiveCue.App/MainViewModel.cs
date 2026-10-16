@@ -48,6 +48,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand AddAudioCueCommand { get; }
     public RelayCommand AddImageCueCommand { get; }
     public RelayCommand AddFadeCueCommand { get; }
+    public RelayCommand AddStopCueCommand { get; }
     public RelayCommand RemoveSelectedCueCommand { get; }
     public RelayCommand RefreshDisplaysCommand { get; }
     public RelayCommand ApplyResolutionCommand { get; }
@@ -82,6 +83,9 @@ public class MainViewModel : INotifyPropertyChanged
     /// DeviceName — excluded from every "pick a target screen" list AND from actual playback
     /// (see ResolveBounds), not just hidden cosmetically.</summary>
     private readonly HashSet<string> _disabledMonitors = new();
+
+    /// <summary>Keeps every enabled (non-primary) monitor showing black and ready, instead of the desktop.</summary>
+    private readonly MonitorBackgroundManager _monitorBackgrounds = new();
 
     private DisplayInfo? _selectedDisplayForResolution;
     public DisplayInfo? SelectedDisplayForResolution
@@ -204,6 +208,7 @@ public class MainViewModel : INotifyPropertyChanged
         AddAudioCueCommand = new RelayCommand(AddAudioCue);
         AddImageCueCommand = new RelayCommand(AddImageCue);
         AddFadeCueCommand = new RelayCommand(AddFadeCue);
+        AddStopCueCommand = new RelayCommand(AddStopCue);
         RemoveSelectedCueCommand = new RelayCommand(RemoveSelectedCue, () => CueList.SelectedCue is not null);
         RefreshDisplaysCommand = new RelayCommand(RefreshDisplays);
         ApplyResolutionCommand = new RelayCommand(ApplyResolution,
@@ -311,6 +316,8 @@ public class MainViewModel : INotifyPropertyChanged
         SelectedDisplayForResolution = Displays.FirstOrDefault(d => d.DeviceName == previouslySelectedDevice)
             ?? Displays.FirstOrDefault();
         NewVirtualHostDisplay ??= EnabledDisplays.FirstOrDefault() ?? Displays.FirstOrDefault();
+
+        _monitorBackgrounds.Sync(EnabledDisplays);
     }
 
     /// <summary>
@@ -562,6 +569,17 @@ public class MainViewModel : INotifyPropertyChanged
         {
             Number = NextCueNumber(),
             Name = "Fade out",
+        };
+        AddCueToList(cue);
+    }
+
+    /// <summary>Stop cue: no media of its own, immediately stops another cue (by its Number), no fade.</summary>
+    private void AddStopCue()
+    {
+        var cue = new StopCue
+        {
+            Number = NextCueNumber(),
+            Name = "Stop",
         };
         AddCueToList(cue);
     }

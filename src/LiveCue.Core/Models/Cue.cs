@@ -9,6 +9,7 @@ namespace LiveCue.Core.Models;
 [JsonDerivedType(typeof(AudioCue), "audio")]
 [JsonDerivedType(typeof(ImageCue), "image")]
 [JsonDerivedType(typeof(FadeCue), "fade")]
+[JsonDerivedType(typeof(StopCue), "stop")]
 public abstract class Cue : INotifyPropertyChanged
 {
     [JsonInclude]

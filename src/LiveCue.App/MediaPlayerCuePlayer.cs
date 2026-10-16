@@ -58,6 +58,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
         MediaCue mediaCue => PlayMediaAsync(mediaCue, ct),
         FadeCue fadeCue => PlayFadeAsync(fadeCue, ct),
         ImageCue imageCue => PlayImageAsync(imageCue, ct),
+        StopCue stopCue => PlayStopAsync(stopCue),
         _ => Task.CompletedTask,
     };
 
@@ -340,6 +341,29 @@ public class MediaPlayerCuePlayer : ICuePlayer
                 _activeImageWindows.Remove(cue.Id);
             window.Close();
         }
+    }
+
+    /// <summary>
+    /// Immediately stops another cue (by its Number), no fade - the audio/video/image "Stop" cue.
+    /// Works for any currently-active cue since it just reuses the same <see cref="Stop(Cue)"/>
+    /// every cue type is already stopped through (PANIC included).
+    /// </summary>
+    private Task PlayStopAsync(StopCue cue)
+    {
+        var target = _cueList.Cues.FirstOrDefault(c => c.Number == cue.TargetCueNumber);
+        if (target is null)
+        {
+            CueFailed?.Invoke(cue, $"cue target \"{cue.TargetCueNumber}\" non trovata");
+            return Task.CompletedTask;
+        }
+        if (!_activePlayers.ContainsKey(target.Id) && !_activeImageWindows.ContainsKey(target.Id))
+        {
+            CueFailed?.Invoke(cue, $"la cue target \"{cue.TargetCueNumber}\" non è in riproduzione");
+            return Task.CompletedTask;
+        }
+
+        Stop(target);
+        return Task.CompletedTask;
     }
 
     /// <summary>
