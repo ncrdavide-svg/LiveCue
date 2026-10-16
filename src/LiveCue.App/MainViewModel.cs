@@ -52,6 +52,14 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand SaveProjectCommand { get; }
     public RelayCommand LoadProjectCommand { get; }
     public RelayCommand NewProjectCommand { get; }
+    public RelayCommand UndoCommand { get; }
+    public RelayCommand RedoCommand { get; }
+
+    private readonly UndoManager _undo = new();
+    public bool CanUndo => _undo.CanUndo;
+    public bool CanRedo => _undo.CanRedo;
+    public string UndoTooltip => _undo.UndoDescription is { } d ? $"Annulla: {d}" : "Annulla";
+    public string RedoTooltip => _undo.RedoDescription is { } d ? $"Ripeti: {d}" : "Ripeti";
 
     private readonly MediaPlayerCuePlayer _player;
     private readonly SystemMonitor _systemMonitor = new();
@@ -195,6 +203,16 @@ public class MainViewModel : INotifyPropertyChanged
         SaveProjectCommand = new RelayCommand(() => SaveProject());
         LoadProjectCommand = new RelayCommand(LoadProject);
         NewProjectCommand = new RelayCommand(NewProject);
+        UndoCommand = new RelayCommand(_undo.Undo, () => _undo.CanUndo);
+        RedoCommand = new RelayCommand(_undo.Redo, () => _undo.CanRedo);
+
+        _undo.Changed += () =>
+        {
+            OnPropertyChanged(nameof(CanUndo));
+            OnPropertyChanged(nameof(CanRedo));
+            OnPropertyChanged(nameof(UndoTooltip));
+            OnPropertyChanged(nameof(RedoTooltip));
+        };
 
         Displays.CollectionChanged += (_, _) => OnPropertyChanged(nameof(DisplayTargets));
         VirtualDisplays.CollectionChanged += (_, _) => OnPropertyChanged(nameof(DisplayTargets));
@@ -353,7 +371,13 @@ public class MainViewModel : INotifyPropertyChanged
         if (ReferenceEquals(_editingVirtualDisplay, virtualDisplay))
             CancelEditVirtualDisplay();
 
+        var index = VirtualDisplays.IndexOf(virtualDisplay);
         VirtualDisplays.Remove(virtualDisplay);
+
+        _undo.Push(new UndoableAction(
+            $"Rimuovi monitor virtuale \"{virtualDisplay.Name}\"",
+            redo: () => VirtualDisplays.Remove(virtualDisplay),
+            undo: () => VirtualDisplays.Insert(Math.Min(index, VirtualDisplays.Count), virtualDisplay)));
     }
 
     private void CancelEditVirtualDisplay()
@@ -373,17 +397,27 @@ public class MainViewModel : INotifyPropertyChanged
         if (_editingVirtualDisplay is { } editing)
         {
             // Same Id, mutated in place: cues already targeting this virtual display stay linked to it.
+            var (oldName, oldHost, oldOffsetX, oldOffsetY, oldWidth, oldHeight) =
+                (editing.Name, editing.HostDeviceName, editing.OffsetX, editing.OffsetY, editing.Width, editing.Height);
+            var newHost = NewVirtualHostDisplay.DeviceName;
+            var (newOffsetX, newOffsetY, newWidth, newHeight) = (NewVirtualOffsetX, NewVirtualOffsetY, NewVirtualWidth, NewVirtualHeight);
+
             editing.Name = name;
-            editing.HostDeviceName = NewVirtualHostDisplay.DeviceName;
-            editing.OffsetX = NewVirtualOffsetX;
-            editing.OffsetY = NewVirtualOffsetY;
-            editing.Width = NewVirtualWidth;
-            editing.Height = NewVirtualHeight;
+            editing.HostDeviceName = newHost;
+            editing.OffsetX = newOffsetX;
+            editing.OffsetY = newOffsetY;
+            editing.Width = newWidth;
+            editing.Height = newHeight;
             CancelEditVirtualDisplay();
+
+            _undo.Push(new UndoableAction(
+                $"Modifica monitor virtuale \"{oldName}\"",
+                redo: () => { editing.Name = name; editing.HostDeviceName = newHost; editing.OffsetX = newOffsetX; editing.OffsetY = newOffsetY; editing.Width = newWidth; editing.Height = newHeight; },
+                undo: () => { editing.Name = oldName; editing.HostDeviceName = oldHost; editing.OffsetX = oldOffsetX; editing.OffsetY = oldOffsetY; editing.Width = oldWidth; editing.Height = oldHeight; }));
             return;
         }
 
-        VirtualDisplays.Add(new VirtualDisplay
+        var created = new VirtualDisplay
         {
             Name = name,
             HostDeviceName = NewVirtualHostDisplay.DeviceName,
@@ -391,7 +425,13 @@ public class MainViewModel : INotifyPropertyChanged
             OffsetY = NewVirtualOffsetY,
             Width = NewVirtualWidth,
             Height = NewVirtualHeight,
-        });
+        };
+        VirtualDisplays.Add(created);
+
+        _undo.Push(new UndoableAction(
+            $"Crea monitor virtuale \"{created.Name}\"",
+            redo: () => VirtualDisplays.Add(created),
+            undo: () => VirtualDisplays.Remove(created)));
 
         NewVirtualDisplayName = $"Virtuale {VirtualDisplays.Count + 1}";
     }
@@ -455,14 +495,39 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         CueList.Cues.Add(cue);
-        CueList.SelectedIndex = CueList.Cues.Count - 1;
+        var index = CueList.Cues.Count - 1;
+        CueList.SelectedIndex = index;
         _ = _player.LoadDurationAsync(cue, filePath);
+
+        _undo.Push(new UndoableAction(
+            $"Aggiungi cue {cue.Number}",
+            redo: () => { CueList.Cues.Insert(index, cue); CueList.SelectedIndex = index; },
+            undo: () => CueList.Cues.Remove(cue)));
     }
 
     private void RemoveSelectedCue()
     {
-        if (CueList.SelectedCue is { } cue)
-            CueList.Cues.Remove(cue);
+        if (CueList.SelectedCue is not { } cue) return;
+        var index = CueList.Cues.IndexOf(cue);
+        CueList.Cues.Remove(cue);
+
+        _undo.Push(new UndoableAction(
+            $"Elimina cue {cue.Number}",
+            redo: () => CueList.Cues.Remove(cue),
+            undo: () => { CueList.Cues.Insert(index, cue); CueList.SelectedIndex = index; }));
+    }
+
+    /// <summary>Moves a cue within the list (drag&amp;drop reorder), recorded for Undo/Redo.</summary>
+    public void MoveCue(int oldIndex, int newIndex)
+    {
+        if (oldIndex == newIndex) return;
+        var cue = CueList.Cues[oldIndex];
+        CueList.Cues.Move(oldIndex, newIndex);
+
+        _undo.Push(new UndoableAction(
+            $"Sposta cue {cue.Number}",
+            redo: () => CueList.Cues.Move(CueList.Cues.IndexOf(cue), newIndex),
+            undo: () => CueList.Cues.Move(CueList.Cues.IndexOf(cue), oldIndex)));
     }
 
     // --- Unsaved-changes tracking ---
@@ -561,6 +626,7 @@ public class MainViewModel : INotifyPropertyChanged
         CueList.Cues.Clear();
         CueList.Name = "Cue List 1";
         CueList.SelectedIndex = -1;
+        _undo.Clear();
         SetCurrentProject(null);
         StatusMessage = "Nuovo progetto.";
     }
@@ -618,6 +684,7 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        _undo.Clear();
         SetCurrentProject(dialog.FileName);
         StatusMessage = $"Progetto caricato da {dialog.FileName}";
 
