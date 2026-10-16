@@ -20,6 +20,7 @@ public class MainViewModel : INotifyPropertyChanged
 {
     private static readonly string[] VideoExtensions = { ".mp4", ".mov", ".mkv", ".avi", ".webm", ".wmv", ".m4v" };
     private static readonly string[] AudioExtensions = { ".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg", ".wma" };
+    private static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff" };
 
     public static readonly ContinueModeOption[] ContinueModeOptions =
     {
@@ -29,19 +30,24 @@ public class MainViewModel : INotifyPropertyChanged
     };
 
     public CueList CueList { get; } = new();
+    /// <summary>Every physical monitor Windows reports, active or not - shown in the Monitor window so they can be toggled.</summary>
     public ObservableCollection<DisplayInfo> Displays { get; } = new();
+    /// <summary>Only the monitors the operator left "Attivo" - what cues/virtual displays can actually target.</summary>
+    public ObservableCollection<DisplayInfo> EnabledDisplays { get; } = new();
     public ObservableCollection<VirtualDisplay> VirtualDisplays { get; } = new();
     public ObservableCollection<DisplayMode> AvailableModes { get; } = new();
     public CueEngine Engine { get; }
     public MediaPlayerCuePlayer Player => _player;
 
-    /// <summary>Physical + virtual displays combined, for the cue-list "Schermo" picker.</summary>
-    public IEnumerable<object> DisplayTargets => Displays.Cast<object>().Concat(VirtualDisplays.Cast<object>());
+    /// <summary>Enabled physical + virtual displays combined, for the cue-list "Schermo" picker.</summary>
+    public IEnumerable<object> DisplayTargets => EnabledDisplays.Cast<object>().Concat(VirtualDisplays.Cast<object>());
 
     public RelayCommand GoCommand { get; }
     public RelayCommand PanicCommand { get; }
     public RelayCommand AddVideoCueCommand { get; }
     public RelayCommand AddAudioCueCommand { get; }
+    public RelayCommand AddImageCueCommand { get; }
+    public RelayCommand AddFadeCueCommand { get; }
     public RelayCommand RemoveSelectedCueCommand { get; }
     public RelayCommand RefreshDisplaysCommand { get; }
     public RelayCommand ApplyResolutionCommand { get; }
@@ -71,6 +77,11 @@ public class MainViewModel : INotifyPropertyChanged
     /// (e.g. "Generic PnP Monitor") is often useless for telling two monitors apart at a glance.</summary>
     private readonly Dictionary<string, string> _monitorNameOverrides = new();
     private DisplayInfo? _renamingDisplay;
+
+    /// <summary>Monitors the operator turned off via "Attivo" in the Monitor window, keyed by
+    /// DeviceName — excluded from every "pick a target screen" list AND from actual playback
+    /// (see ResolveBounds), not just hidden cosmetically.</summary>
+    private readonly HashSet<string> _disabledMonitors = new();
 
     private DisplayInfo? _selectedDisplayForResolution;
     public DisplayInfo? SelectedDisplayForResolution
@@ -180,7 +191,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     public MainViewModel()
     {
-        _player = new MediaPlayerCuePlayer(App.VlcInstance!, ResolveBounds);
+        _player = new MediaPlayerCuePlayer(App.VlcInstance!, ResolveBounds, CueList);
 
         _player.CueFailed += (cue, reason) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
             StatusMessage = $"Cue {cue.Number} \"{cue.Name}\" non eseguita: {reason}");
@@ -191,6 +202,8 @@ public class MainViewModel : INotifyPropertyChanged
         PanicCommand = new RelayCommand(Panic);
         AddVideoCueCommand = new RelayCommand(AddVideoCue);
         AddAudioCueCommand = new RelayCommand(AddAudioCue);
+        AddImageCueCommand = new RelayCommand(AddImageCue);
+        AddFadeCueCommand = new RelayCommand(AddFadeCue);
         RemoveSelectedCueCommand = new RelayCommand(RemoveSelectedCue, () => CueList.SelectedCue is not null);
         RefreshDisplaysCommand = new RelayCommand(RefreshDisplays);
         ApplyResolutionCommand = new RelayCommand(ApplyResolution,
@@ -214,7 +227,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(RedoTooltip));
         };
 
-        Displays.CollectionChanged += (_, _) => OnPropertyChanged(nameof(DisplayTargets));
+        EnabledDisplays.CollectionChanged += (_, _) => OnPropertyChanged(nameof(DisplayTargets));
         VirtualDisplays.CollectionChanged += (_, _) => OnPropertyChanged(nameof(DisplayTargets));
 
         RefreshDisplays();
@@ -264,8 +277,10 @@ public class MainViewModel : INotifyPropertyChanged
         // Always re-query the OS here instead of using the cached Displays collection: that
         // collection is only refreshed on startup or on "Aggiorna elenco monitor", so if a
         // resolution changed since then (ours or Windows'), using it would send the cue to the
-        // wrong position/size even though the correct monitor was selected.
-        var livePhysical = DisplayManager.GetDisplays();
+        // wrong position/size even though the correct monitor was selected. A monitor the
+        // operator turned off is excluded here too, not just from the "Schermo" picker - a cue
+        // still configured with its Id (set before it was disabled) must not play there either.
+        var livePhysical = DisplayManager.GetDisplays().Where(d => !_disabledMonitors.Contains(d.DeviceName));
 
         // When this returns null the player reports the cue as not played (CueFailed).
         var bounds = DisplayManager.ResolveOutputBounds(targetId, livePhysical, VirtualDisplays, out var warning);
@@ -279,6 +294,7 @@ public class MainViewModel : INotifyPropertyChanged
         var previouslySelectedDevice = SelectedDisplayForResolution?.DeviceName;
 
         Displays.Clear();
+        EnabledDisplays.Clear();
         foreach (var display in DisplayManager.GetDisplays())
         {
             // Windows' own EDID name ("Generic PnP Monitor"...) is often useless for telling two
@@ -286,12 +302,27 @@ public class MainViewModel : INotifyPropertyChanged
             var named = _monitorNameOverrides.TryGetValue(display.DeviceName, out var customName)
                 ? display with { MonitorName = customName }
                 : display;
+            named.IsEnabled = !_disabledMonitors.Contains(display.DeviceName);
             Displays.Add(named);
+            if (named.IsEnabled)
+                EnabledDisplays.Add(named);
         }
 
         SelectedDisplayForResolution = Displays.FirstOrDefault(d => d.DeviceName == previouslySelectedDevice)
             ?? Displays.FirstOrDefault();
-        NewVirtualHostDisplay ??= Displays.FirstOrDefault();
+        NewVirtualHostDisplay ??= EnabledDisplays.FirstOrDefault() ?? Displays.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Turns a physical monitor on/off for cue targeting (see <see cref="EnabledDisplays"/>) - a
+    /// disabled monitor still shows up in the Monitor window (so it can be re-enabled), it just
+    /// drops out of every "pick a target screen" list and out of actual playback resolution.
+    /// </summary>
+    public void ToggleMonitorEnabled(DisplayInfo display)
+    {
+        if (!_disabledMonitors.Remove(display.DeviceName))
+            _disabledMonitors.Add(display.DeviceName);
+        RefreshDisplays();
     }
 
     /// <summary>Loads a monitor's current name into the rename form so it can be changed and saved.</summary>
@@ -458,7 +489,18 @@ public class MainViewModel : INotifyPropertyChanged
         AddCueFromFile(dialog.FileName);
     }
 
-    /// <summary>Adds a cue inferring Audio/Video from the file extension. Used by file dialogs and drag&amp;drop.</summary>
+    private void AddImageCue()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Scegli un'immagine",
+            Filter = "Immagini|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff|Tutti i file|*.*",
+        };
+        if (dialog.ShowDialog() != true) return;
+        AddCueFromFile(dialog.FileName);
+    }
+
+    /// <summary>Adds a cue inferring Video/Audio/Image from the file extension. Used by file dialogs and drag&amp;drop.</summary>
     public void AddCueFromFile(string filePath)
     {
         // Make sure the default "Schermo" assignment (and its label) reflects the monitor
@@ -467,6 +509,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         Cue cue;
+        var needsDuration = false;
 
         if (VideoExtensions.Contains(ext))
         {
@@ -475,9 +518,10 @@ public class MainViewModel : INotifyPropertyChanged
                 Number = NextCueNumber(),
                 Name = Path.GetFileNameWithoutExtension(filePath),
                 FilePath = filePath,
-                // Prefer the first non-primary (external) display, if there is one.
-                TargetDisplayId = (Displays.FirstOrDefault(d => !d.IsPrimary) ?? Displays.FirstOrDefault())?.Id,
+                // Prefer the first enabled non-primary (external) display, if there is one.
+                TargetDisplayId = (EnabledDisplays.FirstOrDefault(d => !d.IsPrimary) ?? EnabledDisplays.FirstOrDefault())?.Id,
             };
+            needsDuration = true;
         }
         else if (AudioExtensions.Contains(ext))
         {
@@ -487,6 +531,17 @@ public class MainViewModel : INotifyPropertyChanged
                 Name = Path.GetFileNameWithoutExtension(filePath),
                 FilePath = filePath,
             };
+            needsDuration = true;
+        }
+        else if (ImageExtensions.Contains(ext))
+        {
+            cue = new ImageCue
+            {
+                Number = NextCueNumber(),
+                Name = Path.GetFileNameWithoutExtension(filePath),
+                FilePath = filePath,
+                TargetDisplayId = (EnabledDisplays.FirstOrDefault(d => !d.IsPrimary) ?? EnabledDisplays.FirstOrDefault())?.Id,
+            };
         }
         else
         {
@@ -494,10 +549,29 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        AddCueToList(cue);
+        // An image has no intrinsic media duration to parse out of the file - only video/audio do.
+        if (needsDuration)
+            _ = _player.LoadDurationAsync(cue, filePath);
+    }
+
+    /// <summary>Fade cue: no media of its own, fades another cue (by its Number) out over N seconds, then stops it.</summary>
+    private void AddFadeCue()
+    {
+        var cue = new FadeCue
+        {
+            Number = NextCueNumber(),
+            Name = "Fade out",
+        };
+        AddCueToList(cue);
+    }
+
+    /// <summary>Appends a cue, selects it, and records the add for Undo/Redo. Shared by every "add a cue" path.</summary>
+    private void AddCueToList(Cue cue)
+    {
         CueList.Cues.Add(cue);
         var index = CueList.Cues.Count - 1;
         CueList.SelectedIndex = index;
-        _ = _player.LoadDurationAsync(cue, filePath);
 
         _undo.Push(new UndoableAction(
             $"Aggiungi cue {cue.Number}",

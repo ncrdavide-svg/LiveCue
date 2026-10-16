@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using LibVLCSharp.Shared;
 using LiveCue.Core.Models;
@@ -22,10 +23,15 @@ public class MediaPlayerCuePlayer : ICuePlayer
     /// <summary>A jump back in playback time larger than this means a looping cue just wrapped around.</summary>
     private const long LoopWrapThresholdMs = 1000;
 
+    /// <summary>How often a Fade cue updates its target's live volume/opacity, and an Image cue's countdown, while running.</summary>
+    private static readonly TimeSpan AnimationTickInterval = TimeSpan.FromMilliseconds(40);
+
     private readonly LibVLC _libVlc;
     private readonly Func<string?, ScreenBounds?> _resolveBounds;
+    private readonly CueList _cueList;
     private readonly Dictionary<Guid, MediaPlayer> _activePlayers = new();
     private readonly Dictionary<Guid, VideoOutputWindow> _activeWindows = new();
+    private readonly Dictionary<Guid, ImageOutputWindow> _activeImageWindows = new();
 
     /// <summary>Fired right after a cue's video output window is shown — lets a monitor-preview window mirror it live.</summary>
     public event Action<Guid, VideoOutputWindow>? VideoWindowOpened;
@@ -40,20 +46,27 @@ public class MediaPlayerCuePlayer : ICuePlayer
     /// </summary>
     public event Action<Cue, string>? CueFailed;
 
-    public MediaPlayerCuePlayer(LibVLC libVlc, Func<string?, ScreenBounds?> resolveBounds)
+    public MediaPlayerCuePlayer(LibVLC libVlc, Func<string?, ScreenBounds?> resolveBounds, CueList cueList)
     {
         _libVlc = libVlc;
         _resolveBounds = resolveBounds;
+        _cueList = cueList;
     }
 
-    public Task PlayAsync(Cue cue, CancellationToken ct) => cue is MediaCue mediaCue
-        ? PlayMediaAsync(mediaCue, ct)
-        : Task.CompletedTask;
+    public Task PlayAsync(Cue cue, CancellationToken ct) => cue switch
+    {
+        MediaCue mediaCue => PlayMediaAsync(mediaCue, ct),
+        FadeCue fadeCue => PlayFadeAsync(fadeCue, ct),
+        ImageCue imageCue => PlayImageAsync(imageCue, ct),
+        _ => Task.CompletedTask,
+    };
 
     public void Stop(Cue cue)
     {
         if (_activePlayers.TryGetValue(cue.Id, out var player))
             _ = StopOffUiThreadAsync(player);
+        if (_activeImageWindows.Remove(cue.Id, out var imageWindow))
+            imageWindow.Close();
     }
 
     public void StopAll()
@@ -63,9 +76,11 @@ public class MediaPlayerCuePlayer : ICuePlayer
         foreach (var player in _activePlayers.Values.ToList())
             _ = StopOffUiThreadAsync(player);
 
-        // Hide every video output window immediately, rather than waiting for each cue's own
-        // async cleanup to run — the panic button should clear the screen synchronously.
+        // Hide every video/image output window immediately, rather than waiting for each cue's
+        // own async cleanup to run — the panic button should clear the screen synchronously.
         foreach (var window in _activeWindows.Values.ToList())
+            window.Hide();
+        foreach (var window in _activeImageWindows.Values.ToList())
             window.Hide();
     }
 
@@ -254,6 +269,157 @@ public class MediaPlayerCuePlayer : ICuePlayer
             });
             _stopTasks.Remove(player);
             window?.Close();
+        }
+    }
+
+    /// <summary>
+    /// Shows a still image on its target screen. Has no MediaPlayer at all (just a WPF Image), so
+    /// it's tracked in its own dictionary rather than <see cref="_activePlayers"/>. Completes (so
+    /// a "Continua" chain can move on) after DisplaySeconds if set, or stays showing - and the
+    /// returned task stays pending - until Stop()/PANIC/chain cancellation cancels <paramref name="ct"/>.
+    /// </summary>
+    private async Task PlayImageAsync(ImageCue cue, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(cue.FilePath) || !File.Exists(cue.FilePath))
+        {
+            CueFailed?.Invoke(cue, $"file non trovato: {cue.FilePath}");
+            return;
+        }
+
+        var bounds = _resolveBounds(cue.TargetDisplayId);
+        if (bounds is null)
+        {
+            CueFailed?.Invoke(cue, "schermo di uscita non trovato e nessun monitor secondario collegato");
+            return;
+        }
+
+        ImageOutputWindow window;
+        try
+        {
+            // Always a fresh window, same as video cues: a newer image cue on the same screen
+            // just layers on top rather than replacing whatever's already showing there.
+            window = new ImageOutputWindow(bounds, cue.FilePath);
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+            CueFailed?.Invoke(cue, $"immagine non valida: {Path.GetFileName(cue.FilePath)}");
+            return;
+        }
+
+        _activeImageWindows[cue.Id] = window;
+        window.Show();
+
+        try
+        {
+            if (cue.DisplaySeconds > 0)
+            {
+                var duration = TimeSpan.FromSeconds(cue.DisplaySeconds);
+                var start = DateTime.UtcNow;
+                while (true)
+                {
+                    var remaining = duration - (DateTime.UtcNow - start);
+                    if (remaining <= TimeSpan.Zero) break;
+                    cue.RemainingTime = remaining;
+                    await Task.Delay(AnimationTickInterval, ct);
+                }
+            }
+            else
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct); // stays up until stopped/cancelled
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Stop()/PANIC/chain cancellation: fall through to close the window below.
+        }
+        finally
+        {
+            cue.RemainingTime = null;
+            if (_activeImageWindows.TryGetValue(cue.Id, out var current) && current == window)
+                _activeImageWindows.Remove(cue.Id);
+            window.Close();
+        }
+    }
+
+    /// <summary>
+    /// Fades a currently-playing cue's volume (and, for a video, its picture) down to nothing over
+    /// the Fade cue's duration, then stops it. The volume side reuses the live-volume wiring
+    /// already in <see cref="PlayMediaAsync"/> (it reacts to Cue.Volume changes on its own) rather
+    /// than touching the target's MediaPlayer directly. The picture side can't use the same trick:
+    /// animating the video window's own Opacity would blend it with whatever is behind it on the
+    /// desktop, not black, so a separate black <see cref="FadeOverlayWindow"/> is layered on top of
+    /// it instead and that window's Opacity is what actually animates.
+    /// </summary>
+    private async Task PlayFadeAsync(FadeCue cue, CancellationToken ct)
+    {
+        var target = _cueList.Cues.FirstOrDefault(c => c.Number == cue.TargetCueNumber);
+        if (target is null)
+        {
+            CueFailed?.Invoke(cue, $"cue target \"{cue.TargetCueNumber}\" non trovata");
+            return;
+        }
+        if (target is not MediaCue targetMedia)
+        {
+            CueFailed?.Invoke(cue, $"la cue target \"{cue.TargetCueNumber}\" non è audio/video");
+            return;
+        }
+        if (!_activePlayers.TryGetValue(target.Id, out var targetPlayer))
+        {
+            CueFailed?.Invoke(cue, $"la cue target \"{cue.TargetCueNumber}\" non è in riproduzione");
+            return;
+        }
+
+        FadeOverlayWindow? overlay = null;
+        if (_activeWindows.TryGetValue(target.Id, out var targetWindow))
+        {
+            overlay = new FadeOverlayWindow(targetWindow.Bounds);
+            overlay.Show();
+        }
+
+        var duration = TimeSpan.FromSeconds(Math.Max(0, cue.FadeSeconds));
+        var startVolume = targetMedia.Volume;
+        var start = DateTime.UtcNow;
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                // The target may have ended, been stopped, or been re-fired independently while
+                // we were fading it - either way there's nothing left of this playback to fade.
+                if (!_activePlayers.TryGetValue(target.Id, out var current) || current != targetPlayer)
+                    return;
+
+                var elapsed = DateTime.UtcNow - start;
+                if (elapsed >= duration) break;
+
+                var level = duration > TimeSpan.Zero ? 1 - elapsed.TotalSeconds / duration.TotalSeconds : 0;
+                targetMedia.Volume = startVolume * level;
+                if (overlay is not null) overlay.Opacity = 1 - level;
+                cue.RemainingTime = duration - elapsed;
+
+                await Task.Delay(AnimationTickInterval, ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // PANIC/Stop during the fade: fall through to the restore/cleanup below.
+        }
+        finally
+        {
+            cue.RemainingTime = null;
+            if (overlay is not null) overlay.Opacity = 1; // fully black even if the loop above exited early
+
+            // Stop (and wait for VLC's native video surface to actually tear down) BEFORE
+            // restoring the volume and dropping the black overlay: PlayMediaAsync's own live-volume
+            // handler is still subscribed at this point, so restoring first would push the still-
+            // playing MediaPlayer straight back up to full volume for the moment it takes Stop() to
+            // actually land - audible as a one-frame blip of the track "restarting" right at 0.
+            if (!ct.IsCancellationRequested && _activePlayers.TryGetValue(target.Id, out var current) && current == targetPlayer)
+                await StopOffUiThreadAsync(targetPlayer);
+
+            targetMedia.Volume = startVolume; // restore the cue's own level for the next time it plays
+            overlay?.Close();
         }
     }
 

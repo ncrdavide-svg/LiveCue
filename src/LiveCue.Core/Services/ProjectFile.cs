@@ -26,8 +26,8 @@ public static class ProjectFile
         var root = JsonSerializer.SerializeToNode(dto, Options)!;
         foreach (var cueNode in root[nameof(ProjectDto.Cues)]!.AsArray())
         {
-            if (cueNode?[nameof(MediaCue.FilePath)]?.GetValue<string>() is { Length: > 0 } filePath)
-                cueNode[nameof(MediaCue.FilePath)] = ToStoredPath(filePath, projectDir);
+            if (cueNode?[nameof(IFileCue.FilePath)]?.GetValue<string>() is { Length: > 0 } filePath)
+                cueNode[nameof(IFileCue.FilePath)] = ToStoredPath(filePath, projectDir);
         }
 
         File.WriteAllText(path, root.ToJsonString(Options));
@@ -44,7 +44,7 @@ public static class ProjectFile
         if (dto is null) return;
 
         var projectDir = GetProjectDirectory(path);
-        foreach (var cue in dto.Cues.OfType<MediaCue>())
+        foreach (var cue in dto.Cues.OfType<IFileCue>())
             cue.FilePath = ResolveStoredPath(cue.FilePath, projectDir);
 
         if (dto.VirtualDisplays is { Count: > 0 })

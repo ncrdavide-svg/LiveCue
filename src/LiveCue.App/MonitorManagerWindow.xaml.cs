@@ -79,6 +79,12 @@ public partial class MonitorManagerWindow : Window
             ViewModel.BeginRenameMonitor(display);
     }
 
+    private void MonitorEnabled_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is DisplayInfo display)
+            ViewModel.ToggleMonitorEnabled(display);
+    }
+
     private void EditVirtualDisplay_Click(object sender, RoutedEventArgs e)
     {
         if (((FrameworkElement)sender).DataContext is VirtualDisplay virtualDisplay)
