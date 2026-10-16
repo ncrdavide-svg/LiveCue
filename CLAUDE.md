@@ -36,6 +36,8 @@ Requisiti: .NET 9 SDK, Inno Setup 6 (`winget install JRSoftware.InnoSetup`).
 - **Coordinate:** l'app è Per-Monitor-V2 DPI aware. `DisplayInfo`/`ScreenBounds` sono pixel reali; le finestre di uscita si posizionano con `SetWindowPos`, non con Left/Top WPF.
 - **LibVLC:** gli eventi arrivano su thread di VLC. Non chiamare il player da lì; usare `TaskCompletionSource` con `RunContinuationsAsynchronously` e il Dispatcher per la UI. Stop/PANIC generano `Stopped` (non `EndReached`); file illeggibili generano `EncounteredError`.
 - **`ICuePlayer.PlayAsync`** termina alla fine del *primo giro* (le cue in loop continuano dopo); su errore termina subito, così le catene "Continua" non si bloccano.
+- **Focus:** le finestre di uscita video (e ogni overlay a tutto schermo) devono avere `WS_EX_NOACTIVATE`: la superficie nativa di VLC altrimenti ruba il focus e l'operatore resta bloccato. Non chiamare `Activate()` su di esse.
+- **PANIC:** ESC è registrato come hotkey globale (`RegisterHotKey`) in `MainWindow`, così funziona qualunque finestra abbia il focus. Non sostituirlo con un semplice `KeyBinding`.
 - **Monitor di uscita:** non usare mai il monitor principale (quello dell'operatore) come ripiego per una cue con schermo mancante.
 - **`CueList`:** la regola "l'ultima cue non continua" NON va applicata sulle aggiunte, altrimenti il caricamento di un progetto azzera tutti i ContinueMode.
 - **Tempi:** pre/post-wait si inseriscono in secondi tramite `TimeInput`/`SecondsConverter`; il binding diretto a `TimeSpan` legge "5" come 5 giorni.
