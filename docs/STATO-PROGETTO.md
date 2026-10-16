@@ -1,30 +1,36 @@
 # LiveCue — Report del lavoro e stato del progetto
 
-*Ultimo aggiornamento: 15 ottobre 2026*
+*Ultimo aggiornamento: 16 ottobre 2026*
 
-Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il punto in cui siamo arrivati e come riprendere da un altro PC.
+Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il punto in cui siamo arrivati e come riprendere da un altro PC. **Va aggiornato alla fine di ogni sessione di lavoro**, da qualsiasi PC: è l'unico "ponte" tra le sessioni (le conversazioni con Claude non si vedono da un PC all'altro).
 
 ---
 
 ## 1. Dove siamo (in breve)
 
-- **Branch di lavoro:** `feature/installer` — contiene **tutto** (è già su GitHub).
-- **`master`** è ancora fermo al commit iniziale: **nessuna pull request è stata aperta**. Per portare tutto in `master` basta una sola PR da `feature/installer`:
-  https://github.com/ncrdavide-svg/LiveCue/pull/new/feature/installer
-- `fix/review-issues` è un branch intermedio, già incluso in `feature/installer`: dopo il merge si può cancellare.
-- **Build:** pulita, nessun warning. **Test:** 38 su 38 superati.
-- **Setup:** `LiveCue-Setup-1.0.0.exe` (64 MB) si genera con lo script dell'installer (vedi §6). Non è nel repository (la cartella `artifacts/` è esclusa da Git): va rigenerato su ogni PC.
+- **`master` è aggiornato** e contiene il lavoro del 15 ottobre in ufficio e la prima parte della sera da casa (PR #1, #2, #3 unite). Build pulita, **38 test su 38** superati (verificato il 16/10).
+- **Due branch fatti da casa aspettano ancora la pull request** (non sono in `master`):
+  - `feature/monitor-identify-rename-screentest` — Identifica / Rinomina / Test schermo dei monitor;
+  - `feature/undo-redo` — Annulla/Ripeti.
 
-### Storia dei commit (`feature/installer`)
+  Partono entrambi da `master` attuale e **non vanno in conflitto tra loro** (verificato): si possono unire in qualsiasi ordine.
+- `fix/review-issues` e `feature/installer` sono già uniti in `master`: si possono cancellare.
+- **Setup:** si genera con lo script dell'installer (vedi §8); non è nel repository (`artifacts/` è escluso da Git), va rigenerato su ogni PC.
 
-| Commit | Contenuto |
-|---|---|
-| `9772f6d` | Commit iniziale (codice originale) |
-| `ea640e8` | Primo giro di correzioni + test + README |
-| `2f355dd` | Installer Windows (Inno Setup) |
-| `ab00643` | Icona dell'app |
-| `6996efc` | Secondo giro di correzioni |
-| *(questo)* | Report e istruzioni (`docs/STATO-PROGETTO.md`, `CLAUDE.md`) |
+### Storia (in ordine)
+
+| Quando | Commit / PR | Contenuto |
+|---|---|---|
+| — | `9772f6d` | Commit iniziale (codice originale) |
+| 15/10 ufficio | `ea640e8` | Primo giro di correzioni + test + README (§2) |
+| 15/10 ufficio | `2f355dd`, `ab00643` | Installer Windows e icona (§3) |
+| 15/10 ufficio | `6996efc` | Secondo giro di correzioni (§4) |
+| 15/10 ufficio | `c6956ab` | Questo report e `CLAUDE.md` |
+| 15/10 19:31 | PR #1 | `feature/installer` → `master` |
+| 15/10 casa | `680dcff`, PR #2 | Operatore non più bloccato da un video sul suo monitor (§5) |
+| 15/10 casa | `95131aa`, PR #3 | Volume regolabile dal vivo, app che parte massimizzata (§5) |
+| 15/10 casa | `3283dfb` | Identifica / Rinomina / Test schermo — **PR da aprire** (§5) |
+| 15/10 casa | `4162eec` | Annulla/Ripeti — **PR da aprire** (§5) |
 
 ---
 
@@ -52,7 +58,7 @@ Refactoring: classe base `MediaCue` (percorso file, volume, loop) per `AudioCue`
 - Windows 10/11 a 64 bit (anche ARM64 in emulazione). Non funziona su Windows a 32 bit.
 - Installazione "per tutti gli utenti" (admin) o "solo per me" (senza admin), italiano/inglese, menu Start, icona desktop opzionale, disinstallazione da Pannello di controllo.
 - Solo la versione x64 di VLC viene inclusa (setup da 64 MB invece di ~110).
-- L'eseguibile si chiama ora `LiveCue.exe`, versione 1.0.0.
+- L'eseguibile si chiama `LiveCue.exe`, versione 1.0.0.
 - **Testato:** installazione silenziosa, avvio, disinstallazione.
 
 **Icona** (`src/LiveCue.App/Assets/LiveCue.ico`, generata da `tools/make_icon.py`): riquadro scuro, lista di cue con la prossima in ambra, triangolo verde del GO. Versione semplificata per 16–32 px. Usata da exe, finestre e installer.
@@ -74,19 +80,55 @@ Refactoring: classe base `MediaCue` (percorso file, volume, loop) per `AudioCue`
 
 ---
 
-## 5. Cosa NON è stato verificato a mano
+## 5. Lavoro della sera del 15/10 (da casa, sessione cloud)
 
-I test automatici coprono la logica (`LiveCue.Core`); l'app è stata avviata e chiusa senza errori, ma questi scenari vanno provati dal vivo:
+### Già in `master`
 
-- riproduzione di video/audio reali su più monitor e con scaling diverso dal 100%;
-- cue con file mancante, file corrotto, proiettore scollegato;
+- **Operatore non più bloccato da un video sul proprio monitor** (`680dcff`, PR #2). La superficie video nativa di VLC "rubava" il focus della tastiera: con un video a tutto schermo sul monitor dell'app non si poteva più cliccare né usare ESC. Ora le finestre di uscita non possono mai prendere il focus (`WS_EX_NOACTIVATE` a livello Win32) ed **ESC = PANIC è un tasto globale di sistema** (`RegisterHotKey`): funziona qualunque finestra abbia il focus. *Verificato dal vivo.*
+- **Volume regolabile dal vivo** (`95131aa`, PR #3): colonna Volume con cursore (0–1) nella lista; spostandolo mentre la cue suona il volume cambia subito. L'app **parte massimizzata**.
+
+### Da unire (PR da aprire)
+
+- **Identifica / Rinomina / Test schermo** (`feature/monitor-identify-rename-screentest`, `3283dfb`):
+  - *Identifica monitor*: mostra per qualche secondo il numero "Monitor N" di LiveCue su ogni schermo. Serve perché la numerazione di Windows (Impostazioni schermo) può **non coincidere** con quella di LiveCue — confermato su una macchina reale.
+  - *Rinomina*: nome personalizzato per ogni monitor al posto di "Generic PnP Monitor", mostrato ovunque. **Attenzione: vale solo per la sessione aperta, non viene salvato nel progetto.**
+  - *Test schermo*: immagine di prova a tutto schermo per monitor (barre colore, griglia di allineamento, cerchi, marcatori ai bordi, nome e risoluzione). Clic o ESC per chiudere.
+  - I due aiuti Win32 (posizionamento in pixel, `WS_EX_NOACTIVATE`) sono raccolti in `Win32WindowPlacement` e riusati dalle nuove finestre.
+  - *Verificato dal vivo su 3 monitor con scaling misto.*
+- **Annulla/Ripeti** (`feature/undo-redo`, `4162eec`): Ctrl+Z / Ctrl+Y e pulsanti con descrizione dell'azione. Copre aggiunta/eliminazione/riordino delle cue e creazione/modifica/rimozione dei monitor virtuali. **Non copre** le modifiche ai singoli campi nella griglia (nome, tempi, continua...): per quelle c'è solo l'ESC della griglia durante la modifica. `UndoManager` è in Core con i suoi test.
+
+---
+
+## 6. Cosa NON è stato verificato a mano
+
+Verificati dal vivo (sera del 15/10): blocco dell'operatore + ESC globale; Identifica/Rinomina/Test schermo su 3 monitor con scaling misto.
+
+Ancora da provare dal vivo:
+- cue con file mancante, file corrotto, proiettore scollegato durante lo spettacolo;
 - loop + "Continua";
-- richiesta di salvataggio alla chiusura;
+- richiesta di salvataggio alla chiusura / Nuovo / Apri;
+- Annulla/Ripeti (dopo il merge);
 - installazione del setup su un **altro** PC.
 
 ---
 
-## 6. Come riprendere da un altro PC
+## 7. Prossimi passi suggeriti
+
+1. **Aprire e unire le due PR** `feature/monitor-identify-rename-screentest` e `feature/undo-redo` (nessun conflitto tra loro); poi cancellare i branch già uniti.
+2. **Provare dal vivo** gli scenari del §6.
+3. **Salvare i nomi personalizzati dei monitor** (oggi si perdono alla chiusura) — dopo il merge di Rinomina.
+4. **Annulla/Ripeti anche per le modifiche ai campi** della griglia.
+5. **Barra spaziatrice = GO** (come QLab); ora c'è solo ESC = PANIC.
+6. **Cue con file mancante evidenziate in rosso** nella lista.
+7. **Fade in/out** e cue "Stop"/"Fade" (i tipi `Stop`, `Wait`, `Group` sono già previsti in `CueType` ma non implementati).
+8. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
+9. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
+
+~~Colonna Volume~~ — fatta (PR #3).
+
+---
+
+## 8. Come riprendere da un altro PC
 
 1. Installa gli strumenti (una volta sola):
    ```
@@ -95,11 +137,10 @@ I test automatici coprono la logica (`LiveCue.Core`); l'app è stata avviata e c
    winget install JRSoftware.InnoSetup
    ```
    (Per rigenerare l'icona serve anche Python con Pillow: `pip install pillow`.)
-2. Scarica il progetto e passa al branch di lavoro:
+2. Scarica il progetto (o, se c'è già, aggiornalo con `git switch master` + `git pull`):
    ```
    git clone https://github.com/ncrdavide-svg/LiveCue.git
    cd LiveCue
-   git switch feature/installer
    ```
 3. Comandi utili:
    ```
@@ -108,19 +149,6 @@ I test automatici coprono la logica (`LiveCue.Core`); l'app è stata avviata e c
    dotnet run --project src/LiveCue.App
    powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1 -Version 1.0.0
    ```
-4. Apri Claude Code nella cartella `LiveCue`: legge da solo `CLAUDE.md` (istruzioni tecniche) e puoi chiedergli di leggere questo file per sapere dove eravamo rimasti.
+4. Apri Claude Code nella cartella `LiveCue`: legge da solo `CLAUDE.md` (istruzioni tecniche); chiedigli di leggere questo file per sapere dove eravamo rimasti — e, a fine lavoro, di aggiornarlo e fare il push.
 
----
-
-## 7. Prossimi passi suggeriti
-
-Da decidere/fare, in ordine di utilità:
-
-1. **Aprire e unire la pull request** `feature/installer` → `master`.
-2. **Provare dal vivo** gli scenari del §5.
-3. **Barra spaziatrice = GO** (come QLab); ora c'è solo ESC = PANIC.
-4. **Colonna Volume** nella griglia (il valore esiste già nel modello).
-5. **Cue con file mancante evidenziate in rosso** nella lista.
-6. **Fade in/out** e cue "Stop"/"Fade" (i tipi `Stop`, `Wait`, `Group` sono già previsti in `CueType` ma non implementati).
-7. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
-8. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
+**PC dell'ufficio:** progetto in `Desktop\livecue\LiveCue`.
