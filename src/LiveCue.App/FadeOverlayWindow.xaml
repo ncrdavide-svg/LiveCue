@@ -1,0 +1,18 @@
+<!-- AllowsTransparency is required for a WPF Window's Opacity to blend smoothly at all - without
+     it, fractional Opacity values aren't layered-rendered and the window just snaps between
+     invisible and opaque instead of actually fading. -->
+<Window x:Class="LiveCue.App.FadeOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="NoResize"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False"
+        WindowStartupLocation="Manual"
+        Background="Black"
+        Opacity="0">
+    <Grid/>
+</Window>

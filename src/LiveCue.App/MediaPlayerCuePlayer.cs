@@ -267,10 +267,13 @@ public class MediaPlayerCuePlayer : ICuePlayer
     }
 
     /// <summary>
-    /// Fades a currently-playing cue's volume (and, for a video, its window's opacity) down to
-    /// nothing over the Fade cue's duration, then stops it. Reuses the live-volume wiring already
-    /// in <see cref="PlayMediaAsync"/> (it reacts to Cue.Volume changes on its own) rather than
-    /// touching the target's MediaPlayer directly, so a fade is just an animation of the model.
+    /// Fades a currently-playing cue's volume (and, for a video, its picture) down to nothing over
+    /// the Fade cue's duration, then stops it. The volume side reuses the live-volume wiring
+    /// already in <see cref="PlayMediaAsync"/> (it reacts to Cue.Volume changes on its own) rather
+    /// than touching the target's MediaPlayer directly. The picture side can't use the same trick:
+    /// animating the video window's own Opacity would blend it with whatever is behind it on the
+    /// desktop, not black, so a separate black <see cref="FadeOverlayWindow"/> is layered on top of
+    /// it instead and that window's Opacity is what actually animates.
     /// </summary>
     private async Task PlayFadeAsync(FadeCue cue, CancellationToken ct)
     {
@@ -291,11 +294,15 @@ public class MediaPlayerCuePlayer : ICuePlayer
             return;
         }
 
-        _activeWindows.TryGetValue(target.Id, out var targetWindow);
+        FadeOverlayWindow? overlay = null;
+        if (_activeWindows.TryGetValue(target.Id, out var targetWindow))
+        {
+            overlay = new FadeOverlayWindow(targetWindow.Bounds);
+            overlay.Show();
+        }
 
         var duration = TimeSpan.FromSeconds(Math.Max(0, cue.FadeSeconds));
         var startVolume = targetMedia.Volume;
-        var startOpacity = targetWindow?.Opacity ?? 1.0;
         var start = DateTime.UtcNow;
 
         try
@@ -312,8 +319,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
 
                 var level = duration > TimeSpan.Zero ? 1 - elapsed.TotalSeconds / duration.TotalSeconds : 0;
                 targetMedia.Volume = startVolume * level;
-                if (_activeWindows.TryGetValue(target.Id, out var currentWindow) && currentWindow == targetWindow)
-                    currentWindow.Opacity = startOpacity * level;
+                if (overlay is not null) overlay.Opacity = 1 - level;
                 cue.RemainingTime = duration - elapsed;
 
                 await Task.Delay(FadeTickInterval, ct);
@@ -326,10 +332,18 @@ public class MediaPlayerCuePlayer : ICuePlayer
         finally
         {
             cue.RemainingTime = null;
-            targetMedia.Volume = startVolume; // restore the cue's own level for the next time it plays
+            if (overlay is not null) overlay.Opacity = 1; // fully black even if the loop above exited early
 
+            // Stop (and wait for VLC's native video surface to actually tear down) BEFORE
+            // restoring the volume and dropping the black overlay: PlayMediaAsync's own live-volume
+            // handler is still subscribed at this point, so restoring first would push the still-
+            // playing MediaPlayer straight back up to full volume for the moment it takes Stop() to
+            // actually land - audible as a one-frame blip of the track "restarting" right at 0.
             if (!ct.IsCancellationRequested && _activePlayers.TryGetValue(target.Id, out var current) && current == targetPlayer)
-                Stop(target); // fully silent/invisible now - stop it rather than leaving it stuck at zero
+                await StopOffUiThreadAsync(targetPlayer);
+
+            targetMedia.Volume = startVolume; // restore the cue's own level for the next time it plays
+            overlay?.Close();
         }
     }
 
