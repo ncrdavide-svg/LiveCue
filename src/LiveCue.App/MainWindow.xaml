@@ -51,6 +51,7 @@
             <Separator Margin="8,0"/>
             <Button Content="+ Video Cue" Command="{Binding AddVideoCueCommand}"/>
             <Button Content="+ Audio Cue" Command="{Binding AddAudioCueCommand}"/>
+            <Button Content="+ Image Cue" Command="{Binding AddImageCueCommand}"/>
             <Button Content="+ Fade Cue" Command="{Binding AddFadeCueCommand}"/>
             <Button Content="Elimina" Command="{Binding RemoveSelectedCueCommand}"/>
             <Separator Margin="8,0"/>
@@ -100,6 +101,8 @@
                 <!-- Fade cue only: # of the cue it fades out, and the fade's own length in seconds. -->
                 <DataGridTextColumn Header="Target" Binding="{Binding TargetCueNumber}" Width="60"/>
                 <DataGridTextColumn Header="Fade (s)" Binding="{Binding FadeSeconds}" Width="70"/>
+                <!-- Image cue only: how long to show it before continuing on its own; 0 = stays up until stopped. -->
+                <DataGridTextColumn Header="Mostra (s)" Binding="{Binding DisplaySeconds}" Width="80"/>
                 <!-- Seconds ("2,5"), or m:ss. A bare TimeSpan binding would read "5" as five days. -->
                 <DataGridTextColumn Header="Pre-wait (s)" Binding="{Binding PreWait, Converter={StaticResource SecondsConverter}}" Width="90"/>
                 <DataGridTextColumn Header="Post-wait (s)" Binding="{Binding PostWait, Converter={StaticResource SecondsConverter}}" Width="90"/>
