@@ -53,7 +53,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
     public void Stop(Cue cue)
     {
         if (_activePlayers.TryGetValue(cue.Id, out var player))
-            player.Stop();
+            _ = StopOffUiThreadAsync(player);
     }
 
     public void StopAll()
@@ -61,12 +61,36 @@ public class MediaPlayerCuePlayer : ICuePlayer
         // Each player's Stopped event then runs that cue's own cleanup (closing its window,
         // disposing the player) — even for cues whose GO chain has already finished.
         foreach (var player in _activePlayers.Values.ToList())
-            player.Stop();
+            _ = StopOffUiThreadAsync(player);
 
         // Hide every video output window immediately, rather than waiting for each cue's own
         // async cleanup to run — the panic button should clear the screen synchronously.
         foreach (var window in _activeWindows.Values.ToList())
             window.Hide();
+    }
+
+    // Stop tasks per player, so PANIC + chain cancellation + cleanup never stop one player twice.
+    // Only touched from the UI thread.
+    private readonly Dictionary<MediaPlayer, Task> _stopTasks = new();
+
+    /// <summary>
+    /// MediaPlayer.Stop() (and Dispose() of a player that still has its video output) BLOCK until
+    /// VLC has torn down its video output — and VLC's output thread, while doing that, sends
+    /// messages to the video window, which belongs to the UI thread. Calling them on the UI
+    /// thread is therefore a deadlock: reproduced with two fullscreen videos on two monitors +
+    /// PANIC (app froze, then Windows offered to close it). They always run on a worker thread.
+    /// </summary>
+    private Task StopOffUiThreadAsync(MediaPlayer player)
+    {
+        if (_stopTasks.TryGetValue(player, out var running)) return running;
+
+        var task = Task.Run(() =>
+        {
+            try { player.Stop(); }
+            catch (Exception ex) { App.LogError(ex); }
+        });
+        _stopTasks[player] = task;
+        return task;
     }
 
     /// <summary>
@@ -186,7 +210,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
         // Play() and VLC never raises Stopped.
         using var registration = ct.Register(() =>
         {
-            player.Stop();
+            _ = StopOffUiThreadAsync(player);
             complete();
         });
         try
@@ -204,19 +228,32 @@ public class MediaPlayerCuePlayer : ICuePlayer
                 cue.RemainingTime = null;
             }
 
-            if (window is not null)
+            if (window is not null && _activeWindows.TryGetValue(cue.Id, out var currentWindow) && currentWindow == window)
             {
-                if (_activeWindows.TryGetValue(cue.Id, out var currentWindow) && currentWindow == window)
-                {
-                    _activeWindows.Remove(cue.Id);
-                    VideoWindowClosed?.Invoke(cue.Id);
-                }
-                window.Detach();
-                window.Close();
+                _activeWindows.Remove(cue.Id);
+                VideoWindowClosed?.Invoke(cue.Id);
             }
+            window?.Hide();
 
-            player.Dispose();
-            media.Dispose();
+            // Order matters: VLC must have fully released its video output (worker thread, see
+            // StopOffUiThreadAsync) before the player is detached/disposed and, last, before the
+            // window that hosts VLC's native video surface is destroyed.
+            await StopOffUiThreadAsync(player);
+            window?.Detach();
+            await Task.Run(() =>
+            {
+                try
+                {
+                    player.Dispose();
+                    media.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    App.LogError(ex);
+                }
+            });
+            _stopTasks.Remove(player);
+            window?.Close();
         }
     }
 

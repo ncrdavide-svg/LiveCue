@@ -27,6 +27,7 @@ Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il p
 | 15/10 casa | `3283dfb` | Identifica / Rinomina / Test schermo (§5) |
 | 15/10 casa | `4162eec` | Annulla/Ripeti (§5) |
 | 16/10 ufficio | merge | Tutti i branch uniti in `master` |
+| 16/10 ufficio | `fix/panic-deadlock` | **Blocco dell'app premendo PANIC** con due video a tutto schermo (§5b) |
 
 ---
 
@@ -95,9 +96,25 @@ Refactoring: classe base `MediaCue` (percorso file, volume, loop) per `AudioCue`
 
 ---
 
+## 5b. Blocco dell'app premendo PANIC (16/10)
+
+**Sintomo** (segnalato in ufficio): due filmati diversi su due monitor, PANIC (ESC) → schermi neri, poi bianchi, poi Windows propone di chiudere l'app. Il registro eventi di Windows conferma un *Application Hang* (`AppHangB1`), non un errore.
+
+**Causa:** `MediaPlayer.Stop()` e `Dispose()` di LibVLC sono bloccanti — aspettano che VLC chiuda la sua uscita video — e venivano chiamati sul thread dell'interfaccia. Ma VLC, per chiudere l'uscita video, manda messaggi alla finestra video, che appartiene proprio al thread dell'interfaccia → **deadlock**. Lo stesso rischio c'era quando un video finiva da solo.
+
+**Correzione** (`MediaPlayerCuePlayer`): Stop e Dispose girano sempre su un thread separato (`StopOffUiThreadAsync`, mai due volte sullo stesso player); PANIC nasconde subito le finestre, che vengono chiuse solo dopo che VLC ha davvero finito.
+
+**Verifica** con un programma di prova che usa il vero player di LiveCue (due video di prova generati con ffmpeg, a tutto schermo sui due monitor dell'ufficio, 1920x1080 ciascuno):
+- *prima della correzione:* app bloccata già al primo PANIC (riprodotto);
+- *dopo:* 30 PANIC di fila senza blocchi (la chiamata PANIC dura al massimo 5 ms) e 10 fine-video naturali, tutte le finestre chiuse ogni volta.
+
+Il programma di prova non è nel repository (era in una cartella temporanea): se serve rifarlo, la ricetta è "due `VideoCue` a tutto schermo su monitor diversi → `PlayAsync` → dopo ~1,5 s `cts.Cancel()` + `StopAll()` sul thread UI, con un thread di controllo che verifica che il thread UI risponda".
+
+---
+
 ## 6. Cosa NON è stato verificato a mano
 
-Verificati dal vivo (sera del 15/10): blocco dell'operatore + ESC globale; Identifica/Rinomina/Test schermo su 3 monitor con scaling misto.
+Verificati dal vivo (sera del 15/10): blocco dell'operatore + ESC globale; Identifica/Rinomina/Test schermo su 3 monitor con scaling misto. Verificato con programma di prova (16/10): PANIC e fine naturale con due video a tutto schermo su due monitor (§5b).
 
 Ancora da provare dal vivo:
 - cue con file mancante, file corrotto, proiettore scollegato durante lo spettacolo;
