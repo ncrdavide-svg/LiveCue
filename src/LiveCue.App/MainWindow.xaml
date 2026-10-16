@@ -51,6 +51,7 @@
             <Separator Margin="8,0"/>
             <Button Content="+ Video Cue" Command="{Binding AddVideoCueCommand}"/>
             <Button Content="+ Audio Cue" Command="{Binding AddAudioCueCommand}"/>
+            <Button Content="+ Fade Cue" Command="{Binding AddFadeCueCommand}"/>
             <Button Content="Elimina" Command="{Binding RemoveSelectedCueCommand}"/>
             <Separator Margin="8,0"/>
             <Button Content="↶ Annulla" Command="{Binding UndoCommand}" ToolTip="{Binding UndoTooltip}"/>
@@ -96,6 +97,9 @@
                 <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="70" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="160"/>
                 <DataGridTextColumn Header="File" Binding="{Binding FilePath}" Width="260"/>
+                <!-- Fade cue only: # of the cue it fades out, and the fade's own length in seconds. -->
+                <DataGridTextColumn Header="Target" Binding="{Binding TargetCueNumber}" Width="60"/>
+                <DataGridTextColumn Header="Fade (s)" Binding="{Binding FadeSeconds}" Width="70"/>
                 <!-- Seconds ("2,5"), or m:ss. A bare TimeSpan binding would read "5" as five days. -->
                 <DataGridTextColumn Header="Pre-wait (s)" Binding="{Binding PreWait, Converter={StaticResource SecondsConverter}}" Width="90"/>
                 <DataGridTextColumn Header="Post-wait (s)" Binding="{Binding PostWait, Converter={StaticResource SecondsConverter}}" Width="90"/>

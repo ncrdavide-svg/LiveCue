@@ -42,6 +42,7 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand PanicCommand { get; }
     public RelayCommand AddVideoCueCommand { get; }
     public RelayCommand AddAudioCueCommand { get; }
+    public RelayCommand AddFadeCueCommand { get; }
     public RelayCommand RemoveSelectedCueCommand { get; }
     public RelayCommand RefreshDisplaysCommand { get; }
     public RelayCommand ApplyResolutionCommand { get; }
@@ -180,7 +181,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     public MainViewModel()
     {
-        _player = new MediaPlayerCuePlayer(App.VlcInstance!, ResolveBounds);
+        _player = new MediaPlayerCuePlayer(App.VlcInstance!, ResolveBounds, CueList);
 
         _player.CueFailed += (cue, reason) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
             StatusMessage = $"Cue {cue.Number} \"{cue.Name}\" non eseguita: {reason}");
@@ -191,6 +192,7 @@ public class MainViewModel : INotifyPropertyChanged
         PanicCommand = new RelayCommand(Panic);
         AddVideoCueCommand = new RelayCommand(AddVideoCue);
         AddAudioCueCommand = new RelayCommand(AddAudioCue);
+        AddFadeCueCommand = new RelayCommand(AddFadeCue);
         RemoveSelectedCueCommand = new RelayCommand(RemoveSelectedCue, () => CueList.SelectedCue is not null);
         RefreshDisplaysCommand = new RelayCommand(RefreshDisplays);
         ApplyResolutionCommand = new RelayCommand(ApplyResolution,
@@ -494,10 +496,27 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        AddCueToList(cue);
+        _ = _player.LoadDurationAsync(cue, filePath);
+    }
+
+    /// <summary>Fade cue: no media of its own, fades another cue (by its Number) out over N seconds, then stops it.</summary>
+    private void AddFadeCue()
+    {
+        var cue = new FadeCue
+        {
+            Number = NextCueNumber(),
+            Name = "Fade out",
+        };
+        AddCueToList(cue);
+    }
+
+    /// <summary>Appends a cue, selects it, and records the add for Undo/Redo. Shared by every "add a cue" path.</summary>
+    private void AddCueToList(Cue cue)
+    {
         CueList.Cues.Add(cue);
         var index = CueList.Cues.Count - 1;
         CueList.SelectedIndex = index;
-        _ = _player.LoadDurationAsync(cue, filePath);
 
         _undo.Push(new UndoableAction(
             $"Aggiungi cue {cue.Number}",
