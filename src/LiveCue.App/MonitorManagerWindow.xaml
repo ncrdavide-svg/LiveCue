@@ -43,6 +43,8 @@
             <GroupBox Header="Monitor fisici">
                 <StackPanel>
                     <Button Content="Aggiorna elenco monitor" Command="{Binding RefreshDisplaysCommand}"/>
+                    <Button Content="Identifica monitor" Click="IdentifyMonitors_Click"
+                            ToolTip="Mostra per qualche secondo il numero 'Monitor N' di LiveCue su ogni schermo fisico"/>
                     <ItemsControl ItemsSource="{Binding Displays}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -59,11 +61,29 @@
                                                 </MultiBinding>
                                             </TextBlock.Text>
                                         </TextBlock>
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                            <Button Content="Test schermo" Click="ScreenTest_Click" Padding="6,3" FontSize="10"/>
+                                            <Button Content="Rinomina" Click="RenameMonitor_Click" Padding="6,3" FontSize="10" Margin="6,4,0,4"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <StackPanel Visibility="{Binding IsRenamingMonitor, Converter={StaticResource BoolToVisibilityConverter}}"
+                                Margin="0,8,0,0">
+                        <TextBlock Text="Nuovo nome monitor" FontSize="11" Foreground="#999"/>
+                        <TextBox Text="{Binding RenameMonitorText, UpdateSourceTrigger=PropertyChanged}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Salva nome" Command="{Binding ApplyMonitorRenameCommand}"/>
+                            <Button Grid.Column="1" Content="Annulla" Command="{Binding CancelMonitorRenameCommand}" Margin="6,4,0,4"/>
+                        </Grid>
+                    </StackPanel>
                 </StackPanel>
             </GroupBox>
 
