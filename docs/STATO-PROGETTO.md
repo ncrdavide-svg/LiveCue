@@ -8,13 +8,8 @@ Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il p
 
 ## 1. Dove siamo (in breve)
 
-- **`master` è aggiornato** e contiene il lavoro del 15 ottobre in ufficio e la prima parte della sera da casa (PR #1, #2, #3 unite). Build pulita, **38 test su 38** superati (verificato il 16/10).
-- **Due branch fatti da casa aspettano ancora la pull request** (non sono in `master`):
-  - `feature/monitor-identify-rename-screentest` — Identifica / Rinomina / Test schermo dei monitor;
-  - `feature/undo-redo` — Annulla/Ripeti.
-
-  Partono entrambi da `master` attuale e **non vanno in conflitto tra loro** (verificato): si possono unire in qualsiasi ordine.
-- `fix/review-issues` e `feature/installer` sono già uniti in `master`: si possono cancellare.
+- **Tutto è in `master`** (16/10): il lavoro del 15/10 in ufficio, tutto quello della sera da casa (compresi Identifica/Rinomina/Test schermo e Annulla/Ripeti) e questo report. Build pulita, **46 test su 46** superati.
+- Tutti gli altri branch (`fix/review-issues`, `feature/*`, `docs/*`) sono già uniti: si possono cancellare.
 - **Setup:** si genera con lo script dell'installer (vedi §8); non è nel repository (`artifacts/` è escluso da Git), va rigenerato su ogni PC.
 
 ### Storia (in ordine)
@@ -29,8 +24,9 @@ Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il p
 | 15/10 19:31 | PR #1 | `feature/installer` → `master` |
 | 15/10 casa | `680dcff`, PR #2 | Operatore non più bloccato da un video sul suo monitor (§5) |
 | 15/10 casa | `95131aa`, PR #3 | Volume regolabile dal vivo, app che parte massimizzata (§5) |
-| 15/10 casa | `3283dfb` | Identifica / Rinomina / Test schermo — **PR da aprire** (§5) |
-| 15/10 casa | `4162eec` | Annulla/Ripeti — **PR da aprire** (§5) |
+| 15/10 casa | `3283dfb` | Identifica / Rinomina / Test schermo (§5) |
+| 15/10 casa | `4162eec` | Annulla/Ripeti (§5) |
+| 16/10 ufficio | merge | Tutti i branch uniti in `master` |
 
 ---
 
@@ -87,7 +83,7 @@ Refactoring: classe base `MediaCue` (percorso file, volume, loop) per `AudioCue`
 - **Operatore non più bloccato da un video sul proprio monitor** (`680dcff`, PR #2). La superficie video nativa di VLC "rubava" il focus della tastiera: con un video a tutto schermo sul monitor dell'app non si poteva più cliccare né usare ESC. Ora le finestre di uscita non possono mai prendere il focus (`WS_EX_NOACTIVATE` a livello Win32) ed **ESC = PANIC è un tasto globale di sistema** (`RegisterHotKey`): funziona qualunque finestra abbia il focus. *Verificato dal vivo.*
 - **Volume regolabile dal vivo** (`95131aa`, PR #3): colonna Volume con cursore (0–1) nella lista; spostandolo mentre la cue suona il volume cambia subito. L'app **parte massimizzata**.
 
-### Da unire (PR da aprire)
+### Uniti in `master` il 16/10
 
 - **Identifica / Rinomina / Test schermo** (`feature/monitor-identify-rename-screentest`, `3283dfb`):
   - *Identifica monitor*: mostra per qualche secondo il numero "Monitor N" di LiveCue su ogni schermo. Serve perché la numerazione di Windows (Impostazioni schermo) può **non coincidere** con quella di LiveCue — confermato su una macchina reale.
@@ -107,22 +103,21 @@ Ancora da provare dal vivo:
 - cue con file mancante, file corrotto, proiettore scollegato durante lo spettacolo;
 - loop + "Continua";
 - richiesta di salvataggio alla chiusura / Nuovo / Apri;
-- Annulla/Ripeti (dopo il merge);
+- Annulla/Ripeti;
 - installazione del setup su un **altro** PC.
 
 ---
 
 ## 7. Prossimi passi suggeriti
 
-1. **Aprire e unire le due PR** `feature/monitor-identify-rename-screentest` e `feature/undo-redo` (nessun conflitto tra loro); poi cancellare i branch già uniti.
-2. **Provare dal vivo** gli scenari del §6.
-3. **Salvare i nomi personalizzati dei monitor** (oggi si perdono alla chiusura) — dopo il merge di Rinomina.
-4. **Annulla/Ripeti anche per le modifiche ai campi** della griglia.
-5. **Barra spaziatrice = GO** (come QLab); ora c'è solo ESC = PANIC.
-6. **Cue con file mancante evidenziate in rosso** nella lista.
-7. **Fade in/out** e cue "Stop"/"Fade" (i tipi `Stop`, `Wait`, `Group` sono già previsti in `CueType` ma non implementati).
-8. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
-9. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
+1. **Provare dal vivo** gli scenari del §6.
+2. **Salvare i nomi personalizzati dei monitor** (oggi si perdono alla chiusura).
+3. **Annulla/Ripeti anche per le modifiche ai campi** della griglia.
+4. **Barra spaziatrice = GO** (come QLab); ora c'è solo ESC = PANIC.
+5. **Cue con file mancante evidenziate in rosso** nella lista.
+6. **Fade in/out** e cue "Stop"/"Fade" (i tipi `Stop`, `Wait`, `Group` sono già previsti in `CueType` ma non implementati).
+7. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
+8. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
 
 ~~Colonna Volume~~ — fatta (PR #3).
 
