@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace LiveCue.Core.Models;
 
 public class VideoCue : MediaCue
@@ -10,4 +12,31 @@ public class VideoCue : MediaCue
 
     private bool _fullScreen = true;
     public bool FullScreen { get => _fullScreen; set => SetField(ref _fullScreen, value); }
+
+    // --- Basic color correction (LibVLC's "adjust" video filter), applied live while playing -
+    // see MediaPlayerCuePlayer.PlayMediaAsync/OnCuePropertyChanged. 1.0 is VLC's own neutral
+    // default for all three (0.0-2.0 for Brightness/Contrast, 0.0-3.0 for Saturation). ---
+
+    private double _brightness = 1.0;
+    public double Brightness { get => _brightness; set => SetField(ref _brightness, value); }
+
+    private double _contrast = 1.0;
+    public double Contrast { get => _contrast; set => SetField(ref _contrast, value); }
+
+    private double _saturation = 1.0;
+    public double Saturation { get => _saturation; set => SetField(ref _saturation, value); }
+
+    // --- Technical info for the inspector's "Informazioni" tab - see MediaCue.Bitrate/Codec. ---
+
+    private uint? _videoWidth;
+    [JsonIgnore]
+    public uint? VideoWidth { get => _videoWidth; set => SetField(ref _videoWidth, value); }
+
+    private uint? _videoHeight;
+    [JsonIgnore]
+    public uint? VideoHeight { get => _videoHeight; set => SetField(ref _videoHeight, value); }
+
+    private double? _frameRate;
+    [JsonIgnore]
+    public double? FrameRate { get => _frameRate; set => SetField(ref _frameRate, value); }
 }

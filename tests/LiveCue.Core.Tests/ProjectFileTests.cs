@@ -44,6 +44,62 @@ public sealed class ProjectFileTests : IDisposable
     }
 
     [Fact]
+    public void SaveLoad_RoundTripsAudioRoutingTrimAndColorCorrection()
+    {
+        var list = new CueList();
+        var video = new VideoCue
+        {
+            Number = "1",
+            FilePath = Path.Combine(_dir, "clip.mp4"),
+            AudioOutputDeviceId = "{0.0.0.00000000}.{guid}",
+            TrimStart = TimeSpan.FromSeconds(2.5),
+            TrimEnd = TimeSpan.FromSeconds(30),
+            Brightness = 1.2,
+            Contrast = 0.9,
+            Saturation = 1.5,
+        };
+        list.Cues.Add(video);
+        var projectPath = Path.Combine(_dir, "show.livecue");
+
+        ProjectFile.Save(list, Array.Empty<VirtualDisplay>(), projectPath);
+
+        var loaded = new CueList();
+        ProjectFile.Load(loaded, new List<VirtualDisplay>(), projectPath);
+
+        var loadedVideo = Assert.IsType<VideoCue>(loaded.Cues[0]);
+        Assert.Equal("{0.0.0.00000000}.{guid}", loadedVideo.AudioOutputDeviceId);
+        Assert.Equal(TimeSpan.FromSeconds(2.5), loadedVideo.TrimStart);
+        Assert.Equal(TimeSpan.FromSeconds(30), loadedVideo.TrimEnd);
+        Assert.Equal(1.2, loadedVideo.Brightness);
+        Assert.Equal(0.9, loadedVideo.Contrast);
+        Assert.Equal(1.5, loadedVideo.Saturation);
+    }
+
+    [Fact]
+    public void Save_DoesNotPersistDerivedTechnicalInfo()
+    {
+        var list = new CueList();
+        list.Cues.Add(new VideoCue
+        {
+            Number = "1",
+            FilePath = Path.Combine(_dir, "clip.mp4"),
+            Bitrate = 5000,
+            Codec = "avc1",
+            VideoWidth = 1920,
+            VideoHeight = 1080,
+            FrameRate = 29.97,
+        });
+        var projectPath = Path.Combine(_dir, "show.livecue");
+
+        ProjectFile.Save(list, Array.Empty<VirtualDisplay>(), projectPath);
+
+        var json = File.ReadAllText(projectPath);
+        Assert.DoesNotContain("Bitrate", json);
+        Assert.DoesNotContain("Codec", json);
+        Assert.DoesNotContain("VideoWidth", json);
+    }
+
+    [Fact]
     public void SaveLoad_RoundTripsFadeCue()
     {
         var list = new CueList();
