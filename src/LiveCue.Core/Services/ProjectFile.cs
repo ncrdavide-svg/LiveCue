@@ -16,13 +16,15 @@ public static class ProjectFile
         PropertyNameCaseInsensitive = true,
     };
 
-    public static void Save(CueList cueList, IEnumerable<VirtualDisplay> virtualDisplays, string path)
+    public static void Save(CueList cueList, IEnumerable<VirtualDisplay> virtualDisplays, string path,
+        IReadOnlyDictionary<string, string>? monitorNames = null)
     {
         var projectDir = GetProjectDirectory(path);
 
         // Serialize the live objects as-is, then rewrite paths in the JSON only — the cues in
         // memory keep their absolute paths, which is what playback needs.
-        var dto = new ProjectDto(cueList.Name, cueList.Cues.ToList(), virtualDisplays.ToList());
+        var dto = new ProjectDto(cueList.Name, cueList.Cues.ToList(), virtualDisplays.ToList(),
+            monitorNames is { Count: > 0 } ? new Dictionary<string, string>(monitorNames) : null);
         var root = JsonSerializer.SerializeToNode(dto, Options)!;
         foreach (var cueNode in root[nameof(ProjectDto.Cues)]!.AsArray())
         {
@@ -34,10 +36,12 @@ public static class ProjectFile
     }
 
     /// <summary>
-    /// Replaces the cue list (and, if the file has any, the virtual displays) with the file's contents.
-    /// Older project files have no virtual displays; the current ones are then left untouched.
+    /// Replaces the cue list (and, if the file has any, the virtual displays and monitor name
+    /// overrides) with the file's contents. Older project files have neither; whatever the caller
+    /// passed in is then left untouched.
     /// </summary>
-    public static void Load(CueList cueList, ICollection<VirtualDisplay> virtualDisplays, string path)
+    public static void Load(CueList cueList, ICollection<VirtualDisplay> virtualDisplays, string path,
+        IDictionary<string, string>? monitorNames = null)
     {
         var json = File.ReadAllText(path);
         var dto = JsonSerializer.Deserialize<ProjectDto>(json, Options);
@@ -52,6 +56,13 @@ public static class ProjectFile
             virtualDisplays.Clear();
             foreach (var virtualDisplay in dto.VirtualDisplays)
                 virtualDisplays.Add(virtualDisplay);
+        }
+
+        if (monitorNames is not null && dto.MonitorNames is { Count: > 0 })
+        {
+            monitorNames.Clear();
+            foreach (var (device, name) in dto.MonitorNames)
+                monitorNames[device] = name;
         }
 
         cueList.Name = dto.Name;
@@ -85,5 +96,7 @@ public static class ProjectFile
         return File.Exists(besideProject) ? besideProject : storedPath;
     }
 
-    private record ProjectDto(string Name, List<Cue> Cues, List<VirtualDisplay>? VirtualDisplays);
+    /// <summary>MonitorNames: custom display names keyed by DisplayInfo.DeviceName (e.g. "\\.\DISPLAY2").</summary>
+    private record ProjectDto(string Name, List<Cue> Cues, List<VirtualDisplay>? VirtualDisplays,
+        Dictionary<string, string>? MonitorNames = null);
 }

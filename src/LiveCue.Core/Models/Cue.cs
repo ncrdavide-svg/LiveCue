@@ -46,6 +46,17 @@ public abstract class Cue : INotifyPropertyChanged
     [JsonIgnore]
     public TimeSpan? RemainingTime { get => _remainingTime; set => SetField(ref _remainingTime, value); }
 
+    /// <summary>
+    /// True when this cue's file (see IFileCue.FilePath) doesn't exist on disk - recomputed by
+    /// MediaCue/ImageCue whenever FilePath changes (adding a cue, or loading a project and
+    /// resolving its stored paths), so the cue grid can flag it before GO instead of only failing
+    /// live. Always false for cues with no file of their own (Fade/Stop/...). Not persisted: it's
+    /// derived from the filesystem, not part of the show itself.
+    /// </summary>
+    private bool _fileMissing;
+    [JsonIgnore]
+    public bool FileMissing { get => _fileMissing; set => SetField(ref _fileMissing, value); }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

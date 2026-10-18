@@ -349,6 +349,9 @@ public class MainViewModel : INotifyPropertyChanged
         else
             _monitorNameOverrides[_renamingDisplay.DeviceName] = RenameMonitorText.Trim();
 
+        // Now part of the saved show (see SaveProject/LoadProject), not just this session.
+        IsDirty = true;
+
         CancelRenameMonitor();
         RefreshDisplays();
     }
@@ -755,7 +758,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            ProjectFile.Save(CueList, VirtualDisplays, dialog.FileName);
+            ProjectFile.Save(CueList, VirtualDisplays, dialog.FileName, _monitorNameOverrides);
         }
         catch (Exception ex)
         {
@@ -783,7 +786,7 @@ public class MainViewModel : INotifyPropertyChanged
         CancelEditVirtualDisplay();
         try
         {
-            ProjectFile.Load(CueList, VirtualDisplays, dialog.FileName);
+            ProjectFile.Load(CueList, VirtualDisplays, dialog.FileName, _monitorNameOverrides);
         }
         catch (Exception ex)
         {
@@ -795,11 +798,15 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        // Applies any monitor name overrides the project just loaded (Load only populated the
+        // dictionary - Displays/EnabledDisplays still have whatever names they had before).
+        RefreshDisplays();
+
         _undo.Clear();
         SetCurrentProject(dialog.FileName);
         StatusMessage = $"Progetto caricato da {dialog.FileName}";
 
-        var missing = CueList.Cues.OfType<MediaCue>().Count(c => !File.Exists(c.FilePath));
+        var missing = CueList.Cues.Count(c => c.FileMissing);
         if (missing > 0)
             StatusMessage += $" — ATTENZIONE: {missing} file multimediali non trovati.";
 
