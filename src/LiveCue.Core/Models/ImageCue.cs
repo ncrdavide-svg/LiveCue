@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace LiveCue.Core.Models;
 
 /// <summary>
@@ -12,7 +14,15 @@ public class ImageCue : Cue, IFileCue
     public override CueType Type => CueType.Image;
 
     private string _filePath = string.Empty;
-    public string FilePath { get => _filePath; set => SetField(ref _filePath, value); }
+    public string FilePath
+    {
+        get => _filePath;
+        set
+        {
+            SetField(ref _filePath, value);
+            FileMissing = _filePath.Length > 0 && !File.Exists(_filePath);
+        }
+    }
 
     /// <summary>Id of the target display (a physical DisplayInfo.Id or a VirtualDisplay.Id) this cue shows on.</summary>
     private string? _targetDisplayId;

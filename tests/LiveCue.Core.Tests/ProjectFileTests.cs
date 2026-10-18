@@ -161,6 +161,35 @@ public sealed class ProjectFileTests : IDisposable
     }
 
     [Fact]
+    public void SaveLoad_RoundTripsMonitorNameOverrides()
+    {
+        var list = new CueList();
+        var projectPath = Path.Combine(_dir, "show.livecue");
+        var names = new Dictionary<string, string> { [@"\\.\DISPLAY2"] = "Proiettore palco" };
+
+        ProjectFile.Save(list, Array.Empty<VirtualDisplay>(), projectPath, names);
+
+        var loadedNames = new Dictionary<string, string>();
+        ProjectFile.Load(new CueList(), new List<VirtualDisplay>(), projectPath, loadedNames);
+
+        var entry = Assert.Single(loadedNames);
+        Assert.Equal(@"\\.\DISPLAY2", entry.Key);
+        Assert.Equal("Proiettore palco", entry.Value);
+    }
+
+    [Fact]
+    public void OldProjectWithoutMonitorNames_KeepsCurrentOnes()
+    {
+        var projectPath = Path.Combine(_dir, "old.livecue");
+        File.WriteAllText(projectPath, """{ "Name": "Vecchio", "Cues": [] }""");
+        var current = new Dictionary<string, string> { ["\\\\.\\DISPLAY1"] = "Esistente" };
+
+        ProjectFile.Load(new CueList(), new List<VirtualDisplay>(), projectPath, current);
+
+        Assert.Equal("Esistente", Assert.Single(current).Value);
+    }
+
+    [Fact]
     public void OldProjectWithoutVirtualDisplays_KeepsCurrentOnes()
     {
         var projectPath = Path.Combine(_dir, "old.livecue");

@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -47,6 +48,26 @@ public partial class MainWindow : Window
             RegisterHotKey(hwnd, PanicHotKeyId, ModNoRepeat, VkEscape);
         };
         Closed += (_, _) => UnregisterHotKey(new WindowInteropHelper(this).Handle, PanicHotKeyId);
+
+        PreviewKeyDown += MainWindow_PreviewKeyDown;
+    }
+
+    /// <summary>
+    /// Space = GO, like QLab. A plain WPF-level shortcut is enough here (unlike PANIC/ESC): a
+    /// video cue's output window can never take keyboard focus (WS_EX_NOACTIVATE), so the main
+    /// window's own key handling always sees it. It's a fallback, not an override: anywhere the
+    /// operator could be typing a literal space (a cue's Name/Notes/Target, an open combo box, a
+    /// focused checkbox/button already using Space for its own purpose) lets it through untouched,
+    /// so naming a cue "Scene 2" never fires one.
+    /// </summary>
+    private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Space) return;
+        if (Keyboard.FocusedElement is TextBox or ComboBox or ButtonBase) return;
+        if (Keyboard.FocusedElement is DataGridCell { IsEditing: true }) return;
+
+        e.Handled = true;
+        ViewModel.GoCommand.Execute(null);
     }
 
     private IntPtr PanicHotKeyWndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

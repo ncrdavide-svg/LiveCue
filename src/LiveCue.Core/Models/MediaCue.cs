@@ -1,10 +1,20 @@
+using System.IO;
+
 namespace LiveCue.Core.Models;
 
 /// <summary>Base for cues that play a media file (audio or video).</summary>
 public abstract class MediaCue : Cue, IFileCue
 {
     private string _filePath = string.Empty;
-    public string FilePath { get => _filePath; set => SetField(ref _filePath, value); }
+    public string FilePath
+    {
+        get => _filePath;
+        set
+        {
+            SetField(ref _filePath, value);
+            FileMissing = _filePath.Length > 0 && !File.Exists(_filePath);
+        }
+    }
 
     private double _volume = 1.0;
     public double Volume { get => _volume; set => SetField(ref _volume, value); }

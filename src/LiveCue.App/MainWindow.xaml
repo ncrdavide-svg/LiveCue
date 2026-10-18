@@ -140,7 +140,19 @@
                     <DataGridTextColumn Header="#" Binding="{Binding Number}" Width="40"/>
                     <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="70" IsReadOnly="True"/>
                     <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="160"/>
-                    <DataGridTextColumn Header="File" Binding="{Binding FilePath}" Width="260"/>
+                    <DataGridTextColumn Header="File" Binding="{Binding FilePath}" Width="260">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding FileMissing}" Value="True">
+                                        <Setter Property="Foreground" Value="#FF5252"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="ToolTip" Value="File non trovato"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <!-- Fade/Stop cue only: # of the cue it acts on, and (Fade only) the fade's own length in seconds. -->
                     <DataGridTextColumn Header="Target" Binding="{Binding TargetCueNumber}" Width="60"/>
                     <DataGridTextColumn Header="Fade (s)" Binding="{Binding FadeSeconds}" Width="70"/>
