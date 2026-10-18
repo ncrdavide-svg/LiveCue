@@ -594,19 +594,33 @@ public class MainViewModel : INotifyPropertyChanged
         _undo.Push(new UndoableAction(
             $"Aggiungi cue {cue.Number}",
             redo: () => { CueList.Cues.Insert(index, cue); CueList.SelectedIndex = index; },
-            undo: () => CueList.Cues.Remove(cue)));
+            undo: () =>
+            {
+                // Removing can silently reset whichever cue ends up last to "Non continua" (see
+                // CueList.SnapshotContinueModes) - restore it so Undo doesn't leave that as a
+                // permanent, unrelated side effect of removing THIS cue.
+                var continueModes = CueList.SnapshotContinueModes();
+                CueList.Cues.Remove(cue);
+                CueList.RestoreContinueModes(continueModes);
+            }));
     }
 
     private void RemoveSelectedCue()
     {
         if (CueList.SelectedCue is not { } cue) return;
         var index = CueList.Cues.IndexOf(cue);
+        var continueModes = CueList.SnapshotContinueModes();
         CueList.Cues.Remove(cue);
 
         _undo.Push(new UndoableAction(
             $"Elimina cue {cue.Number}",
             redo: () => CueList.Cues.Remove(cue),
-            undo: () => { CueList.Cues.Insert(index, cue); CueList.SelectedIndex = index; }));
+            undo: () =>
+            {
+                CueList.Cues.Insert(index, cue);
+                CueList.SelectedIndex = index;
+                CueList.RestoreContinueModes(continueModes);
+            }));
     }
 
     /// <summary>Moves a cue within the list (drag&amp;drop reorder), recorded for Undo/Redo.</summary>
@@ -614,12 +628,17 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (oldIndex == newIndex) return;
         var cue = CueList.Cues[oldIndex];
+        var continueModes = CueList.SnapshotContinueModes();
         CueList.Cues.Move(oldIndex, newIndex);
 
         _undo.Push(new UndoableAction(
             $"Sposta cue {cue.Number}",
             redo: () => CueList.Cues.Move(CueList.Cues.IndexOf(cue), newIndex),
-            undo: () => CueList.Cues.Move(CueList.Cues.IndexOf(cue), oldIndex)));
+            undo: () =>
+            {
+                CueList.Cues.Move(CueList.Cues.IndexOf(cue), oldIndex);
+                CueList.RestoreContinueModes(continueModes);
+            }));
     }
 
     // --- Unsaved-changes tracking ---

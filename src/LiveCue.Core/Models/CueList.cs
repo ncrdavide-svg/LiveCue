@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 
 namespace LiveCue.Core.Models;
 
@@ -69,5 +70,20 @@ public class CueList : INotifyPropertyChanged
     {
         var next = SelectedIndex + 1;
         return next < Cues.Count ? Cues[next] : null;
+    }
+
+    /// <summary>
+    /// Every cue's current ContinueMode. Move/Remove can silently reset whichever cue ends up
+    /// last to "Non continua" (<see cref="EnforceLastCueDoesNotContinue"/>) as a side effect
+    /// unrelated to what the caller is actually undoing - callers building Undo/Redo on top of
+    /// a Move or Remove should snapshot before the operation and <see cref="RestoreContinueModes"/>
+    /// after undoing it, so that side effect doesn't outlive the operation that caused it.
+    /// </summary>
+    public Dictionary<Cue, ContinueMode> SnapshotContinueModes() => Cues.ToDictionary(c => c, c => c.ContinueMode);
+
+    public void RestoreContinueModes(IReadOnlyDictionary<Cue, ContinueMode> snapshot)
+    {
+        foreach (var (cue, mode) in snapshot)
+            cue.ContinueMode = mode;
     }
 }
