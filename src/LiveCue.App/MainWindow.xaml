@@ -16,6 +16,12 @@
         <SolidColorBrush x:Key="RowTintA" Color="#9ED9AE"/>
         <SolidColorBrush x:Key="RowTintB" Color="#B6E4C2"/>
 
+        <!-- Toolbar button groups: color signals what a button does, not just its row position. -->
+        <SolidColorBrush x:Key="AddCueAmber" Color="#F5A623"/>
+        <SolidColorBrush x:Key="DeleteOrange" Color="#EF6C00"/>
+        <SolidColorBrush x:Key="UndoRedoSlate" Color="#78909C"/>
+        <SolidColorBrush x:Key="MonitorBlue" Color="#1E88E5"/>
+
         <!-- Rounded-corner button: WPF's stock Button chrome has no CornerRadius of its own,
              so the shape has to come from a custom template rather than a Style setter. -->
         <Style TargetType="Button">
@@ -91,18 +97,18 @@
             <Button Content="Apri..." Command="{Binding LoadProjectCommand}"/>
             <Button Content="Salva..." Command="{Binding SaveProjectCommand}"/>
             <Separator Margin="8,0"/>
-            <Button Content="+ Video Cue" Command="{Binding AddVideoCueCommand}"/>
-            <Button Content="+ Audio Cue" Command="{Binding AddAudioCueCommand}"/>
-            <Button Content="+ Image Cue" Command="{Binding AddImageCueCommand}"/>
-            <Button Content="+ Fade Cue" Command="{Binding AddFadeCueCommand}"/>
-            <Button Content="+ Stop Cue" Command="{Binding AddStopCueCommand}"/>
-            <Button Content="Elimina" Command="{Binding RemoveSelectedCueCommand}"/>
+            <Button Content="▶ Video Cue" Command="{Binding AddVideoCueCommand}" Background="{StaticResource AddCueAmber}"/>
+            <Button Content="♪ Audio Cue" Command="{Binding AddAudioCueCommand}" Background="{StaticResource AddCueAmber}"/>
+            <Button Content="▭ Image Cue" Command="{Binding AddImageCueCommand}" Background="{StaticResource AddCueAmber}"/>
+            <Button Content="◐ Fade Cue" Command="{Binding AddFadeCueCommand}" Background="{StaticResource AddCueAmber}"/>
+            <Button Content="■ Stop Cue" Command="{Binding AddStopCueCommand}" Background="{StaticResource AddCueAmber}"/>
+            <Button Content="Elimina" Command="{Binding RemoveSelectedCueCommand}" Background="{StaticResource DeleteOrange}" Foreground="White"/>
             <Separator Margin="8,0"/>
-            <Button Content="↶ Annulla" Command="{Binding UndoCommand}" ToolTip="{Binding UndoTooltip}"/>
-            <Button Content="↷ Ripeti" Command="{Binding RedoCommand}" ToolTip="{Binding RedoTooltip}"/>
+            <Button Content="↶ Annulla" Command="{Binding UndoCommand}" ToolTip="{Binding UndoTooltip}" Background="{StaticResource UndoRedoSlate}" Foreground="White"/>
+            <Button Content="↷ Ripeti" Command="{Binding RedoCommand}" ToolTip="{Binding RedoTooltip}" Background="{StaticResource UndoRedoSlate}" Foreground="White"/>
             <Separator Margin="8,0"/>
-            <Button Content="Monitor..." Click="OpenMonitorManager_Click"/>
-            <Button Content="Monitor live..." Click="OpenMonitorPreview_Click"/>
+            <Button Content="Monitor..." Click="OpenMonitorManager_Click" Background="{StaticResource MonitorBlue}" Foreground="White"/>
+            <Button Content="Monitor live..." Click="OpenMonitorPreview_Click" Background="{StaticResource MonitorBlue}" Foreground="White"/>
             <Separator Margin="8,0"/>
             <Button Content="GO" Command="{Binding GoCommand}" Background="#2E7D32" Foreground="White" FontWeight="Bold" Width="90"/>
             <Button Content="PANIC (ESC)" Command="{Binding PanicCommand}" Background="#C62828" Foreground="White" FontWeight="Bold" Width="110"/>
