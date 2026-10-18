@@ -33,6 +33,15 @@ public class MediaPlayerCuePlayer : ICuePlayer
     private readonly Dictionary<Guid, VideoOutputWindow> _activeWindows = new();
     private readonly Dictionary<Guid, ImageOutputWindow> _activeImageWindows = new();
 
+    /// <summary>
+    /// Per-image-cue cancellation, linked to whatever chain's token started it. Unlike a
+    /// MediaCue, an Image cue has no MediaPlayer/Stopped event to unblock PlayImageAsync's wait
+    /// when it's stopped - this is what Stop(Cue) cancels so a targeted Stop cue (PlayStopAsync)
+    /// doesn't leave that image cue's PlayAsync task, and any "Continua" chain awaiting it,
+    /// pending forever.
+    /// </summary>
+    private readonly Dictionary<Guid, CancellationTokenSource> _imageStopSources = new();
+
     /// <summary>Fired right after a cue's video output window is shown — lets a monitor-preview window mirror it live.</summary>
     public event Action<Guid, VideoOutputWindow>? VideoWindowOpened;
 
@@ -66,8 +75,11 @@ public class MediaPlayerCuePlayer : ICuePlayer
     {
         if (_activePlayers.TryGetValue(cue.Id, out var player))
             _ = StopOffUiThreadAsync(player);
-        if (_activeImageWindows.Remove(cue.Id, out var imageWindow))
-            imageWindow.Close();
+        // Cancelling (rather than closing the window here directly) runs PlayImageAsync's own
+        // finally block, same as every other cancellation path - one single cleanup path instead
+        // of two that both have to agree on dictionary/window state.
+        if (_imageStopSources.TryGetValue(cue.Id, out var stopSource))
+            stopSource.Cancel();
     }
 
     public void StopAll()
@@ -308,6 +320,12 @@ public class MediaPlayerCuePlayer : ICuePlayer
             return;
         }
 
+        // Linked to the chain's own ct, but also cancellable directly by Stop(Cue) - see the
+        // field comment on _imageStopSources for why this cue type needs its own source.
+        using var stopSource = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _imageStopSources[cue.Id] = stopSource;
+        var imageCt = stopSource.Token;
+
         _activeImageWindows[cue.Id] = window;
         window.Show();
 
@@ -322,12 +340,12 @@ public class MediaPlayerCuePlayer : ICuePlayer
                     var remaining = duration - (DateTime.UtcNow - start);
                     if (remaining <= TimeSpan.Zero) break;
                     cue.RemainingTime = remaining;
-                    await Task.Delay(AnimationTickInterval, ct);
+                    await Task.Delay(AnimationTickInterval, imageCt);
                 }
             }
             else
             {
-                await Task.Delay(Timeout.InfiniteTimeSpan, ct); // stays up until stopped/cancelled
+                await Task.Delay(Timeout.InfiniteTimeSpan, imageCt); // stays up until stopped/cancelled
             }
         }
         catch (OperationCanceledException)
@@ -339,6 +357,8 @@ public class MediaPlayerCuePlayer : ICuePlayer
             cue.RemainingTime = null;
             if (_activeImageWindows.TryGetValue(cue.Id, out var current) && current == window)
                 _activeImageWindows.Remove(cue.Id);
+            if (_imageStopSources.TryGetValue(cue.Id, out var currentSource) && currentSource == stopSource)
+                _imageStopSources.Remove(cue.Id);
             window.Close();
         }
     }
