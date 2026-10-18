@@ -16,6 +16,12 @@ public record ContinueModeOption(ContinueMode Value, string Label)
     public override string ToString() => Label;
 }
 
+/// <summary>An audio output device for the inspector's "Audio" tab — Id is null for "system default".</summary>
+public record AudioOutputDeviceOption(string? Id, string Name)
+{
+    public override string ToString() => Name;
+}
+
 public class MainViewModel : INotifyPropertyChanged
 {
     private static readonly string[] VideoExtensions = { ".mp4", ".mov", ".mkv", ".avi", ".webm", ".wmv", ".m4v" };
@@ -36,6 +42,8 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<DisplayInfo> EnabledDisplays { get; } = new();
     public ObservableCollection<VirtualDisplay> VirtualDisplays { get; } = new();
     public ObservableCollection<DisplayMode> AvailableModes { get; } = new();
+    /// <summary>Audio output devices for the inspector's "Audio" tab — queried once at startup.</summary>
+    public ObservableCollection<AudioOutputDeviceOption> AudioOutputDevices { get; } = new();
     public CueEngine Engine { get; }
     public MediaPlayerCuePlayer Player => _player;
 
@@ -237,6 +245,9 @@ public class MainViewModel : INotifyPropertyChanged
 
         RefreshDisplays();
         StartChangeTracking();
+
+        foreach (var (id, name) in _player.EnumerateAudioOutputDevices())
+            AudioOutputDevices.Add(new AudioOutputDeviceOption(id, name));
 
         _systemMonitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _systemMonitorTimer.Tick += (_, _) => UpdateSystemStats();
@@ -562,7 +573,7 @@ public class MainViewModel : INotifyPropertyChanged
         AddCueToList(cue);
         // An image has no intrinsic media duration to parse out of the file - only video/audio do.
         if (needsDuration)
-            _ = _player.LoadDurationAsync(cue, filePath);
+            _ = _player.LoadMediaInfoAsync(cue, filePath);
     }
 
     /// <summary>Fade cue: no media of its own, fades another cue (by its Number) out over N seconds, then stops it.</summary>
@@ -814,7 +825,7 @@ public class MainViewModel : INotifyPropertyChanged
         foreach (var cue in CueList.Cues)
         {
             if (cue.Duration is null && cue is MediaCue { FilePath.Length: > 0 } mediaCue)
-                _ = _player.LoadDurationAsync(cue, mediaCue.FilePath);
+                _ = _player.LoadMediaInfoAsync(cue, mediaCue.FilePath);
         }
     }
 
