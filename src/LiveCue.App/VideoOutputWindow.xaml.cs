@@ -59,6 +59,16 @@ public partial class VideoOutputWindow : Window
 
     public void Detach() => VideoViewControl.MediaPlayer = null;
 
+    /// <summary>Applies the inspector's pan/zoom/rotate (VideoCue.Zoom/OffsetX/OffsetY/Rotation) live.</summary>
+    public void ApplyTransform(double zoom, double offsetX, double offsetY, double rotationDegrees)
+    {
+        ZoomTransform.ScaleX = zoom;
+        ZoomTransform.ScaleY = zoom;
+        RotateTransformPart.Angle = rotationDegrees;
+        PanTransform.X = offsetX;
+        PanTransform.Y = offsetY;
+    }
+
     private void ApplyBounds() => Win32WindowPlacement.ApplyPixelBounds(Handle, Bounds);
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

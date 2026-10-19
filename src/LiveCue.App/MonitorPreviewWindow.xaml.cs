@@ -32,8 +32,8 @@ public partial class MonitorPreviewWindow : Window
 
         _viewModel.Displays.CollectionChanged += (_, _) => RedrawStaticLayout();
         _viewModel.VirtualDisplays.CollectionChanged += (_, _) => RedrawStaticLayout();
-        _viewModel.Player.VideoWindowOpened += OnVideoWindowOpened;
-        _viewModel.Player.VideoWindowClosed += OnVideoWindowClosed;
+        _viewModel.Player.OutputWindowOpened += OnOutputWindowOpened;
+        _viewModel.Player.OutputWindowClosed += OnOutputWindowClosed;
 
         Loaded += (_, _) => RedrawStaticLayout();
         Closed += (_, _) => Cleanup();
@@ -43,21 +43,20 @@ public partial class MonitorPreviewWindow : Window
 
     private void PreviewCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => RedrawStaticLayout();
 
-    private void OnVideoWindowOpened(Guid cueId, VideoOutputWindow window)
+    private void OnOutputWindowOpened(Guid cueId, IntPtr srcHandle, ScreenBounds bounds)
     {
         Dispatcher.Invoke(() =>
         {
             var destHandle = new WindowInteropHelper(this).Handle;
-            var srcHandle = window.Handle;
             if (destHandle == IntPtr.Zero || srcHandle == IntPtr.Zero) return;
 
             var thumbnail = DwmThumbnail.Register(destHandle, srcHandle);
-            _activeThumbnails[cueId] = (thumbnail, window.Bounds);
+            _activeThumbnails[cueId] = (thumbnail, bounds);
             UpdateThumbnailRect(cueId);
         });
     }
 
-    private void OnVideoWindowClosed(Guid cueId)
+    private void OnOutputWindowClosed(Guid cueId)
     {
         Dispatcher.Invoke(() =>
         {
@@ -174,8 +173,8 @@ public partial class MonitorPreviewWindow : Window
 
     private void Cleanup()
     {
-        _viewModel.Player.VideoWindowOpened -= OnVideoWindowOpened;
-        _viewModel.Player.VideoWindowClosed -= OnVideoWindowClosed;
+        _viewModel.Player.OutputWindowOpened -= OnOutputWindowOpened;
+        _viewModel.Player.OutputWindowClosed -= OnOutputWindowClosed;
 
         foreach (var entry in _activeThumbnails.Values)
             DwmThumbnail.Unregister(entry.Thumbnail);

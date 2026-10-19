@@ -57,6 +57,10 @@ public sealed class ProjectFileTests : IDisposable
             Brightness = 1.2,
             Contrast = 0.9,
             Saturation = 1.5,
+            Zoom = 1.8,
+            OffsetX = -120,
+            OffsetY = 40,
+            Rotation = 90,
         };
         list.Cues.Add(video);
         var projectPath = Path.Combine(_dir, "show.livecue");
@@ -73,6 +77,38 @@ public sealed class ProjectFileTests : IDisposable
         Assert.Equal(1.2, loadedVideo.Brightness);
         Assert.Equal(0.9, loadedVideo.Contrast);
         Assert.Equal(1.5, loadedVideo.Saturation);
+        Assert.Equal(1.8, loadedVideo.Zoom);
+        Assert.Equal(-120, loadedVideo.OffsetX);
+        Assert.Equal(40, loadedVideo.OffsetY);
+        Assert.Equal(90, loadedVideo.Rotation);
+    }
+
+    [Fact]
+    public void SaveLoad_RoundTripsImageCueTransform()
+    {
+        var list = new CueList();
+        var image = new ImageCue
+        {
+            Number = "1",
+            FilePath = Path.Combine(_dir, "logo.png"),
+            Zoom = 2.0,
+            OffsetX = 50,
+            OffsetY = -75,
+            Rotation = -45,
+        };
+        list.Cues.Add(image);
+        var projectPath = Path.Combine(_dir, "show.livecue");
+
+        ProjectFile.Save(list, Array.Empty<VirtualDisplay>(), projectPath);
+
+        var loaded = new CueList();
+        ProjectFile.Load(loaded, new List<VirtualDisplay>(), projectPath);
+
+        var loadedImage = Assert.IsType<ImageCue>(loaded.Cues[0]);
+        Assert.Equal(2.0, loadedImage.Zoom);
+        Assert.Equal(50, loadedImage.OffsetX);
+        Assert.Equal(-75, loadedImage.OffsetY);
+        Assert.Equal(-45, loadedImage.Rotation);
     }
 
     [Fact]

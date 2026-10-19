@@ -29,3 +29,20 @@ public class CueKindVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// The Rotazione slider has no visible effect on a VideoCue: LibVLC's video surface is a native
+/// Win32 child window (HwndHost), and WPF can resize/reposition that window (so Zoom/Posizione
+/// work) but cannot rotate it - that needs actual pixel compositing, which a plain child hwnd
+/// doesn't support (the WPF "airspace" limitation). An ImageCue has no such window (just a WPF
+/// Image control), so rotation works there. Disable the control rather than leave it silently
+/// doing nothing.
+/// </summary>
+public class RotationSupportedConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is not VideoCue;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

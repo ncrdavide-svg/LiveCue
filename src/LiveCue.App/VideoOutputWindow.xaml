@@ -11,6 +11,17 @@
         WindowStartupLocation="Manual"
         Background="Black">
     <Grid Background="Black">
-        <vlc:VideoView x:Name="VideoViewControl" />
+        <!-- Pan/zoom/rotate (see VideoCue.Zoom/OffsetX/OffsetY/Rotation) applied as a plain visual
+             transform on the video surface itself - the Grid stays put so the pixel-exact
+             SetWindowPos placement is never affected by it. -->
+        <vlc:VideoView x:Name="VideoViewControl" RenderTransformOrigin="0.5,0.5">
+            <vlc:VideoView.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform x:Name="ZoomTransform"/>
+                    <RotateTransform x:Name="RotateTransformPart"/>
+                    <TranslateTransform x:Name="PanTransform"/>
+                </TransformGroup>
+            </vlc:VideoView.RenderTransform>
+        </vlc:VideoView>
     </Grid>
 </Window>

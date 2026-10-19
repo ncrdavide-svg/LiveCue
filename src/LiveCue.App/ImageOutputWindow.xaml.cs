@@ -14,6 +14,19 @@ public partial class ImageOutputWindow : Window
 {
     public ScreenBounds Bounds { get; }
 
+    /// <summary>Win32 window handle, valid once the window has been shown.</summary>
+    public IntPtr Handle => new WindowInteropHelper(this).Handle;
+
+    /// <summary>Applies the inspector's pan/zoom/rotate (ImageCue.Zoom/OffsetX/OffsetY/Rotation) live.</summary>
+    public void ApplyTransform(double zoom, double offsetX, double offsetY, double rotationDegrees)
+    {
+        ZoomTransform.ScaleX = zoom;
+        ZoomTransform.ScaleY = zoom;
+        RotateTransformPart.Angle = rotationDegrees;
+        PanTransform.X = offsetX;
+        PanTransform.Y = offsetY;
+    }
+
     public ImageOutputWindow(ScreenBounds bounds, string filePath)
     {
         InitializeComponent();

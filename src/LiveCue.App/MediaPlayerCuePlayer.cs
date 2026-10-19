@@ -52,11 +52,15 @@ public class MediaPlayerCuePlayer : ICuePlayer
     /// </summary>
     private readonly Dictionary<Guid, CancellationTokenSource> _imageStopSources = new();
 
-    /// <summary>Fired right after a cue's video output window is shown — lets a monitor-preview window mirror it live.</summary>
-    public event Action<Guid, VideoOutputWindow>? VideoWindowOpened;
+    /// <summary>
+    /// Fired right after any cue's output window (video OR image) is shown - lets a monitor-
+    /// preview window mirror it live via DWM, which only needs the window's handle and its
+    /// on-screen bounds, not the window itself.
+    /// </summary>
+    public event Action<Guid, IntPtr, ScreenBounds>? OutputWindowOpened;
 
-    /// <summary>Fired right before a cue's video output window is closed.</summary>
-    public event Action<Guid>? VideoWindowClosed;
+    /// <summary>Fired right before a cue's output window is closed.</summary>
+    public event Action<Guid>? OutputWindowClosed;
 
     /// <summary>
     /// Fired when a cue can't be played (missing file, no output screen, VLC error). The cue is
@@ -466,6 +470,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
             // Always a fresh window, even if another cue is already showing on the same screen:
             // it becomes a new layer on top, the earlier cue keeps playing untouched underneath.
             window = new VideoOutputWindow(bounds);
+            window.ApplyTransform(videoCue.Zoom, videoCue.OffsetX, videoCue.OffsetY, videoCue.Rotation);
         }
 
         var media = new Media(_libVlc, new Uri(cue.FilePath));
@@ -512,9 +517,12 @@ public class MediaPlayerCuePlayer : ICuePlayer
                 firstPassDone.TrySetResult();
             lastTimeMs = args.Time;
 
+            // player.Length always reports the whole file's length, even with a mark out
+            // (:stop-time) set - a trimmed cue's own end is whichever comes first.
             var length = player.Length;
             if (length <= 0) return;
-            var remaining = TimeSpan.FromMilliseconds(Math.Max(0, length - args.Time));
+            var effectiveEndMs = cue.TrimEnd is { } trimEnd ? Math.Min(length, trimEnd.TotalMilliseconds) : length;
+            var remaining = TimeSpan.FromMilliseconds(Math.Max(0, effectiveEndMs - args.Time));
             Application.Current?.Dispatcher.BeginInvoke(() => cue.RemainingTime = remaining);
         };
 
@@ -527,6 +535,9 @@ public class MediaPlayerCuePlayer : ICuePlayer
             else if (cue is VideoCue liveVideoCue && e.PropertyName is nameof(VideoCue.Brightness)
                 or nameof(VideoCue.Contrast) or nameof(VideoCue.Saturation))
                 ApplyVideoAdjust(player, liveVideoCue);
+            else if (window is not null && cue is VideoCue transformCue && e.PropertyName is nameof(VideoCue.Zoom)
+                or nameof(VideoCue.OffsetX) or nameof(VideoCue.OffsetY) or nameof(VideoCue.Rotation))
+                window.ApplyTransform(transformCue.Zoom, transformCue.OffsetX, transformCue.OffsetY, transformCue.Rotation);
         }
         cue.PropertyChanged += OnCuePropertyChanged;
 
@@ -540,7 +551,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
             // New Topmost windows already layer above older Topmost ones without needing it.
             window.Show();
             _activeWindows[cue.Id] = window;
-            VideoWindowOpened?.Invoke(cue.Id, window);
+            OutputWindowOpened?.Invoke(cue.Id, window.Handle, window.Bounds);
         }
 
         _ = RunUntilFinishedAsync(cue, player, media, window, finished.Task, Complete, OnCuePropertyChanged, ct);
@@ -577,7 +588,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
             if (window is not null && _activeWindows.TryGetValue(cue.Id, out var currentWindow) && currentWindow == window)
             {
                 _activeWindows.Remove(cue.Id);
-                VideoWindowClosed?.Invoke(cue.Id);
+                OutputWindowClosed?.Invoke(cue.Id);
             }
             window?.Hide();
 
@@ -630,6 +641,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
             // Always a fresh window, same as video cues: a newer image cue on the same screen
             // just layers on top rather than replacing whatever's already showing there.
             window = new ImageOutputWindow(bounds, cue.FilePath);
+            window.ApplyTransform(cue.Zoom, cue.OffsetX, cue.OffsetY, cue.Rotation);
         }
         catch (Exception ex)
         {
@@ -644,8 +656,19 @@ public class MediaPlayerCuePlayer : ICuePlayer
         _imageStopSources[cue.Id] = stopSource;
         var imageCt = stopSource.Token;
 
+        // Lets the inspector's pan/zoom/rotate sliders reposition a cue already on screen,
+        // same idea as a playing video's own live color-correction/volume updates.
+        void OnCuePropertyChanged(object? s, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(ImageCue.Zoom) or nameof(ImageCue.OffsetX)
+                or nameof(ImageCue.OffsetY) or nameof(ImageCue.Rotation))
+                window.ApplyTransform(cue.Zoom, cue.OffsetX, cue.OffsetY, cue.Rotation);
+        }
+        cue.PropertyChanged += OnCuePropertyChanged;
+
         _activeImageWindows[cue.Id] = window;
         window.Show();
+        OutputWindowOpened?.Invoke(cue.Id, window.Handle, window.Bounds);
 
         try
         {
@@ -672,9 +695,13 @@ public class MediaPlayerCuePlayer : ICuePlayer
         }
         finally
         {
+            cue.PropertyChanged -= OnCuePropertyChanged;
             cue.RemainingTime = null;
             if (_activeImageWindows.TryGetValue(cue.Id, out var current) && current == window)
+            {
                 _activeImageWindows.Remove(cue.Id);
+                OutputWindowClosed?.Invoke(cue.Id);
+            }
             if (_imageStopSources.TryGetValue(cue.Id, out var currentSource) && currentSource == stopSource)
                 _imageStopSources.Remove(cue.Id);
             window.Close();
