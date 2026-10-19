@@ -351,7 +351,14 @@
                 <TabItem Header="In/Out" Visibility="{Binding Converter={StaticResource CueKindVisibilityConverter}, ConverterParameter=InOut}">
                     <Border Background="{StaticResource BrandGreenDark}">
                     <StackPanel Margin="12">
-                        <TextBlock Text="Punti di inizio/fine (secondi) - trascinamento su forma d'onda/fotogrammi in arrivo." Foreground="#DDD" FontSize="11" Margin="0,0,0,10"/>
+                        <TextBlock Text="Trascina i bordi gialli per impostare inizio/fine, o scrivi i secondi esatti." Foreground="#DDD" FontSize="11" Margin="0,0,0,8"/>
+                        <local:TrimScrubber Duration="{Binding Duration}"
+                                            TrimStart="{Binding TrimStart, Mode=TwoWay}"
+                                            TrimEnd="{Binding TrimEnd, Mode=TwoWay}"
+                                            WaveformPeaks="{Binding WaveformPeaks}"
+                                            ThumbnailPaths="{Binding ThumbnailPaths}"
+                                            IsAnalyzing="{Binding IsAnalyzing}"
+                                            Margin="0,0,0,10"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Inizio (s):" VerticalAlignment="Center" Foreground="White" Margin="0,0,8,0"/>
                             <TextBox Width="80" Text="{Binding TrimStart, Converter={StaticResource NullableSecondsConverter}, UpdateSourceTrigger=PropertyChanged}"/>

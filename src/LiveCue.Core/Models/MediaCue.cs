@@ -53,4 +53,16 @@ public abstract class MediaCue : Cue, IFileCue
     private uint? _audioSampleRate;
     [JsonIgnore]
     public uint? AudioSampleRate { get => _audioSampleRate; set => SetField(ref _audioSampleRate, value); }
+
+    // --- For the In/Out tab's scrubber - see MediaPlayerCuePlayer.AnalyzeMediaAsync and
+    // MediaAnalysisCache. Peak amplitude (0-1) per horizontal pixel bucket; null until generated
+    // (or if the file has no audio track). Not persisted: regenerated/recached from the file. ---
+
+    private float[]? _waveformPeaks;
+    [JsonIgnore]
+    public float[]? WaveformPeaks { get => _waveformPeaks; set => SetField(ref _waveformPeaks, value); }
+
+    private bool _isAnalyzing;
+    [JsonIgnore]
+    public bool IsAnalyzing { get => _isAnalyzing; set => SetField(ref _isAnalyzing, value); }
 }

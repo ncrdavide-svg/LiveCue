@@ -39,4 +39,11 @@ public class VideoCue : MediaCue
     private double? _frameRate;
     [JsonIgnore]
     public double? FrameRate { get => _frameRate; set => SetField(ref _frameRate, value); }
+
+    /// <summary>Evenly-spaced preview frame files for the In/Out tab's scrubber - see
+    /// MediaPlayerCuePlayer.AnalyzeMediaAsync. Null until generated. Not persisted (cached on
+    /// disk separately, keyed by file content - see MediaAnalysisCache).</summary>
+    private IReadOnlyList<string>? _thumbnailPaths;
+    [JsonIgnore]
+    public IReadOnlyList<string>? ThumbnailPaths { get => _thumbnailPaths; set => SetField(ref _thumbnailPaths, value); }
 }

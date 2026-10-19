@@ -1,0 +1,40 @@
+<UserControl x:Class="LiveCue.App.TrimScrubber"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:LiveCue.App"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="70">
+    <Grid x:Name="RootGrid" Height="70" SizeChanged="RootGrid_SizeChanged">
+        <Border Background="#1A1A1A" BorderBrush="#555" BorderThickness="1"/>
+
+        <!-- Video thumbnails, evenly divided - null/empty for an audio cue, just the dark background shows. -->
+        <ItemsControl x:Name="ThumbnailItems" ItemsSource="{Binding ThumbnailPaths, RelativeSource={RelativeSource AncestorType=UserControl}}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="1"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Image Source="{Binding}" Stretch="UniformToFill" ClipToBounds="True"/>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Waveform + mark in/out handles, positioned in code-behind (proportional to Duration). -->
+        <Canvas x:Name="OverlayCanvas" Background="Transparent">
+            <Polygon x:Name="WaveformShape" Fill="#664FC3F7" Stroke="#4FC3F7" StrokeThickness="1"/>
+            <Rectangle x:Name="BeforeStartOverlay" Fill="#B2000000"/>
+            <Rectangle x:Name="AfterEndOverlay" Fill="#B2000000"/>
+            <Thumb x:Name="StartThumb" Width="10" Background="#FFEB3B" Cursor="SizeWE"
+                   DragDelta="StartThumb_DragDelta" ToolTip="Trascina per impostare l'inizio"/>
+            <Thumb x:Name="EndThumb" Width="10" Background="#FFEB3B" Cursor="SizeWE"
+                   DragDelta="EndThumb_DragDelta" ToolTip="Trascina per impostare la fine"/>
+        </Canvas>
+
+        <TextBlock Text="Generazione anteprima in corso..." Foreground="#DDD" FontSize="11"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Visibility="{Binding IsAnalyzing, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static local:BoolToVisibilityConverter.Instance}}"/>
+    </Grid>
+</UserControl>

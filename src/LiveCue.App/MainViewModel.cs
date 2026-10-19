@@ -573,7 +573,15 @@ public class MainViewModel : INotifyPropertyChanged
         AddCueToList(cue);
         // An image has no intrinsic media duration to parse out of the file - only video/audio do.
         if (needsDuration)
-            _ = _player.LoadMediaInfoAsync(cue, filePath);
+            _ = LoadAndAnalyzeMediaAsync(cue, filePath);
+    }
+
+    /// <summary>Reads duration/resolution/codec info, then generates the In/Out tab's waveform
+    /// (and, for a video, thumbnails) - the latter needs Duration, so always runs after it.</summary>
+    private async Task LoadAndAnalyzeMediaAsync(Cue cue, string filePath)
+    {
+        await _player.LoadMediaInfoAsync(cue, filePath);
+        await _player.AnalyzeMediaAsync(cue);
     }
 
     /// <summary>Fade cue: no media of its own, fades another cue (by its Number) out over N seconds, then stops it.</summary>
@@ -821,11 +829,14 @@ public class MainViewModel : INotifyPropertyChanged
         if (missing > 0)
             StatusMessage += $" — ATTENZIONE: {missing} file multimediali non trovati.";
 
-        // Older project files may predate the Duration field; backfill it for those cues.
+        // The In/Out tab's waveform/thumbnails are never persisted (see MediaCue.WaveformPeaks),
+        // so every media cue needs AnalyzeMediaAsync again here - cheap when already cached on
+        // disk from an earlier session (see MediaAnalysisCache), slow only the first time.
+        // Older project files may also predate the Duration field; backfill it first in that case.
         foreach (var cue in CueList.Cues)
         {
-            if (cue.Duration is null && cue is MediaCue { FilePath.Length: > 0 } mediaCue)
-                _ = _player.LoadMediaInfoAsync(cue, mediaCue.FilePath);
+            if (cue is not MediaCue { FilePath.Length: > 0 } mediaCue) continue;
+            _ = cue.Duration is null ? LoadAndAnalyzeMediaAsync(cue, mediaCue.FilePath) : _player.AnalyzeMediaAsync(cue);
         }
     }
 
