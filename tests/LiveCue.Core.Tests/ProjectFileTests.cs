@@ -100,6 +100,28 @@ public sealed class ProjectFileTests : IDisposable
     }
 
     [Fact]
+    public void Save_DoesNotPersistWaveformOrThumbnailScrubberData()
+    {
+        var list = new CueList();
+        list.Cues.Add(new VideoCue
+        {
+            Number = "1",
+            FilePath = Path.Combine(_dir, "clip.mp4"),
+            WaveformPeaks = new float[] { 0.1f, 0.2f },
+            ThumbnailPaths = new[] { "a.jpg", "b.jpg" },
+            IsAnalyzing = true,
+        });
+        var projectPath = Path.Combine(_dir, "show.livecue");
+
+        ProjectFile.Save(list, Array.Empty<VirtualDisplay>(), projectPath);
+
+        var json = File.ReadAllText(projectPath);
+        Assert.DoesNotContain("WaveformPeaks", json);
+        Assert.DoesNotContain("ThumbnailPaths", json);
+        Assert.DoesNotContain("IsAnalyzing", json);
+    }
+
+    [Fact]
     public void SaveLoad_RoundTripsFadeCue()
     {
         var list = new CueList();

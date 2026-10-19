@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using LibVLCSharp.Shared;
 using LiveCue.Core.Models;
@@ -205,6 +207,242 @@ public class MediaPlayerCuePlayer : ICuePlayer
             App.LogError(ex); // the device list is a convenience; a failure just means "default only"
         }
         return devices;
+    }
+
+    private const int WaveformBuckets = 800;
+    private const int ThumbnailCount = 12;
+    private const int ThumbnailWidth = 160;
+
+    /// <summary>
+    /// Generates (or loads from disk cache - see MediaAnalysisCache) the In/Out tab scrubber's
+    /// waveform and, for a video, preview thumbnails. Both decode the whole file, so this is slow
+    /// (seconds) - meant to run fire-and-forget right after LoadMediaInfoAsync, never awaited by
+    /// a caller that needs to stay responsive. Failures just leave the scrubber showing nothing.
+    /// </summary>
+    public async Task AnalyzeMediaAsync(Cue cue)
+    {
+        if (cue is not MediaCue mediaCue || string.IsNullOrWhiteSpace(mediaCue.FilePath) || !File.Exists(mediaCue.FilePath))
+            return;
+
+        mediaCue.IsAnalyzing = true;
+        try
+        {
+            var cacheDir = MediaAnalysisCache.GetCacheDir(mediaCue.FilePath);
+            var duration = mediaCue.Duration ?? TimeSpan.Zero;
+
+            var cachedWaveform = MediaAnalysisCache.LoadWaveform(cacheDir);
+            if (cachedWaveform is not null)
+            {
+                mediaCue.WaveformPeaks = cachedWaveform;
+            }
+            else
+            {
+                var generated = await GenerateWaveformAsync(mediaCue.FilePath, duration);
+                mediaCue.WaveformPeaks = generated;
+                if (generated is not null) MediaAnalysisCache.SaveWaveform(cacheDir, generated);
+            }
+
+            if (cue is VideoCue videoCue && duration > TimeSpan.Zero)
+            {
+                videoCue.ThumbnailPaths = MediaAnalysisCache.LoadThumbnails(cacheDir, ThumbnailCount)
+                    ?? await GenerateThumbnailsAsync(mediaCue.FilePath, duration, videoCue, cacheDir);
+            }
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex); // the scrubber preview is informational; never fail because of it
+        }
+        finally
+        {
+            mediaCue.IsAnalyzing = false;
+        }
+    }
+
+    /// <summary>
+    /// Decodes the file's audio through LibVLC's audio callbacks (not through a real output
+    /// device - EndReached/Drain just signals "fully decoded") and reduces it to one peak
+    /// amplitude per horizontal pixel bucket. Buckets are by cumulative sample count, not by the
+    /// callback's own PTS, so the result doesn't depend on a particular demuxer's timestamp
+    /// behavior. Returns null if the file has no audio track (Setup never runs, channels stays 0).
+    /// </summary>
+    private async Task<float[]?> GenerateWaveformAsync(string filePath, TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero) return null;
+
+        var peaks = new float[WaveformBuckets];
+        uint channels = 0;
+        long framesPerBucket = 0;
+        long framesSeen = 0;
+
+        int Setup(ref IntPtr opaque, ref IntPtr format, ref uint rate, ref uint chans)
+        {
+            // Deliberately NOT writing to `format`: it's a native char[4] buffer (the fourcc,
+            // e.g. "S16N") that LibVLCSharp's binding marshals as a bare IntPtr rather than a
+            // byte*, and writing through it crashed with an AccessViolationException - confirmed
+            // live (first version of this method). Leaving it untouched accepts libvlc's own
+            // proposed default, which is S16 (signed 16-bit) in every build this has been tested
+            // against; only rate/channels (plain ref uint, no such mismatch) are overridden below,
+            // to a format this method's own sample-reading code (16-bit, see Play below) matches.
+            rate = 44100;
+            chans = 2;
+            channels = chans;
+            framesPerBucket = Math.Max(1, (long)(duration.TotalSeconds * rate) / WaveformBuckets);
+            return 0;
+        }
+        void Cleanup(IntPtr opaque) { }
+        void Pause(IntPtr data, long pts) { }
+        void Resume(IntPtr data, long pts) { }
+        void Flush(IntPtr data, long pts) { }
+        void Play(IntPtr data, IntPtr samples, uint count, long pts)
+        {
+            if (channels == 0 || framesPerBucket == 0) return;
+            var frameCount = (int)count;
+            var buffer = new short[frameCount * (int)channels];
+            Marshal.Copy(samples, buffer, 0, buffer.Length);
+            for (var f = 0; f < frameCount; f++)
+            {
+                float peak = 0;
+                for (var ch = 0; ch < channels; ch++)
+                {
+                    var v = Math.Abs(buffer[f * channels + ch] / 32768f);
+                    if (v > peak) peak = v;
+                }
+                var bucket = (int)((framesSeen + f) / framesPerBucket);
+                if (bucket >= 0 && bucket < WaveformBuckets && peak > peaks[bucket])
+                    peaks[bucket] = peak;
+            }
+            framesSeen += frameCount;
+        }
+
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Drain(IntPtr data) => done.TrySetResult();
+
+        // Delegates passed to native code (SetAudioFormatCallback/SetAudioCallbacks below) are
+        // NOT kept alive by that call alone - LibVLCSharp hands libvlc a raw function pointer and
+        // nothing here references the delegate OBJECTS again afterwards, so the GC is free to
+        // collect them while libvlc's own audio thread is still calling back into them. That is
+        // exactly what happened the first time this ran: an AccessViolationException a few
+        // seconds in, from libvlc invoking an already-collected callback. Explicit locals +
+        // GC.KeepAlive after Stop() has fully returned (so no further callback can fire) is the
+        // standard fix for this category of P/Invoke bug.
+        MediaPlayer.LibVLCAudioSetupCb setupCb = Setup;
+        MediaPlayer.LibVLCAudioCleanupCb cleanupCb = Cleanup;
+        MediaPlayer.LibVLCAudioPlayCb playCb = Play;
+        MediaPlayer.LibVLCAudioPauseCb pauseCb = Pause;
+        MediaPlayer.LibVLCAudioResumeCb resumeCb = Resume;
+        MediaPlayer.LibVLCAudioFlushCb flushCb = Flush;
+        MediaPlayer.LibVLCAudioDrainCb drainCb = Drain;
+
+        using var media = new Media(_libVlc, new Uri(filePath));
+        media.AddOption(":no-video"); // audio only - no output window needed, nothing else to decode
+        using var player = new MediaPlayer(media);
+        player.EndReached += (_, _) => done.TrySetResult();
+        player.EncounteredError += (_, _) => done.TrySetResult();
+        player.SetAudioFormatCallback(setupCb, cleanupCb);
+        player.SetAudioCallbacks(playCb, pauseCb, resumeCb, flushCb, drainCb);
+
+        // No SetRate() speed-up here: confirmed live that changing the playback rate on a
+        // callback-only (no real output device) player makes libvlc drain almost immediately
+        // without ever invoking Play - zero samples captured, silently. Decoding this way runs at
+        // roughly real-time instead, which is why AnalyzeMediaAsync's caller treats this as a
+        // slow, fire-and-forget, disk-cached background task rather than something to await.
+        player.Play();
+
+        var timeoutSeconds = Math.Max(20, duration.TotalSeconds * 2);
+        await Task.WhenAny(done.Task, Task.Delay(TimeSpan.FromSeconds(timeoutSeconds)));
+
+        // Same reason as StopOffUiThreadAsync elsewhere in this class: Stop() blocks until libvlc
+        // tears down, never on the UI thread. This player never had a window, but Stop() itself
+        // is still the same blocking native call.
+        await Task.Run(() =>
+        {
+            try { player.Stop(); }
+            catch (Exception ex) { App.LogError(ex); }
+        });
+
+        // Only safe to let these go once Stop() above has fully returned - see the comment where
+        // they're declared.
+        GC.KeepAlive(setupCb);
+        GC.KeepAlive(cleanupCb);
+        GC.KeepAlive(playCb);
+        GC.KeepAlive(pauseCb);
+        GC.KeepAlive(resumeCb);
+        GC.KeepAlive(flushCb);
+        GC.KeepAlive(drainCb);
+
+        return channels == 0 ? null : peaks;
+    }
+
+    /// <summary>
+    /// Captures <see cref="ThumbnailCount"/> evenly-spaced preview frames via a hidden,
+    /// off-screen player (TakeSnapshot needs an active video output, but it never has to be
+    /// visible). Snapshots are taken opportunistically as a single normal playthrough crosses
+    /// each target timestamp, rather than pausing and seeking to each one individually - tried
+    /// that first, and confirmed live it's unreliable (TakeSnapshot after a paused seek mostly
+    /// failed silently; only the very last of 12 thumbnails ever actually appeared). Snapshotting
+    /// while actively playing is libvlc's ordinary, well-trodden use of TakeSnapshot.
+    /// </summary>
+    private async Task<IReadOnlyList<string>?> GenerateThumbnailsAsync(string filePath, TimeSpan duration, VideoCue cue, string cacheDir)
+    {
+        var window = new ThumbnailCaptureWindow();
+        try
+        {
+            window.Show();
+            using var media = new Media(_libVlc, new Uri(filePath));
+            media.AddOption(":no-audio");
+            using var player = new MediaPlayer(media);
+            window.Attach(player);
+
+            var height = cue.VideoWidth is > 0 && cue.VideoHeight is > 0
+                ? (uint)Math.Round(ThumbnailWidth * (double)cue.VideoHeight.Value / cue.VideoWidth.Value)
+                : (uint)(ThumbnailWidth * 9 / 16);
+
+            var targetsMs = Enumerable.Range(0, ThumbnailCount)
+                .Select(i => (long)(duration.TotalMilliseconds * (i + 0.5) / ThumbnailCount))
+                .ToArray();
+            var paths = new string?[ThumbnailCount];
+            var nextIndex = 0;
+            var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            void OnTimeChanged(object? s, MediaPlayerTimeChangedEventArgs e)
+            {
+                // A single TimeChanged tick can cross more than one target if playback briefly
+                // stalls (buffering) - catch up with a loop rather than only ever taking one.
+                while (nextIndex < targetsMs.Length && e.Time >= targetsMs[nextIndex])
+                {
+                    var snapshotPath = MediaAnalysisCache.ThumbnailFile(cacheDir, nextIndex);
+                    if (player.TakeSnapshot(0, snapshotPath, (uint)ThumbnailWidth, height))
+                        paths[nextIndex] = snapshotPath;
+                    nextIndex++;
+                }
+                if (nextIndex >= targetsMs.Length) done.TrySetResult();
+            }
+            player.TimeChanged += OnTimeChanged;
+            player.EndReached += (_, _) => done.TrySetResult();
+            player.EncounteredError += (_, _) => done.TrySetResult();
+
+            player.Play();
+            await Task.WhenAny(done.Task, Task.Delay(TimeSpan.FromSeconds(Math.Max(20, duration.TotalSeconds * 2))));
+            player.TimeChanged -= OnTimeChanged;
+
+            await Task.Run(() =>
+            {
+                try { player.Stop(); }
+                catch (Exception ex) { App.LogError(ex); }
+            });
+
+            // TakeSnapshot writes the file asynchronously even after it returns true - give the
+            // last couple a moment to actually land before checking what's there.
+            for (var wait = 0; wait < 20 && paths.Any(p => p is not null && !File.Exists(p)); wait++)
+                await Task.Delay(100);
+
+            var existing = paths.Where(p => p is not null && File.Exists(p)).Select(p => p!).ToList();
+            return existing.Count > 0 ? existing : null;
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     /// <returns>A task that completes at the end of the first pass (see <see cref="ICuePlayer.PlayAsync"/>).</returns>
