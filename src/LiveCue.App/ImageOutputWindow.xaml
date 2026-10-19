@@ -10,6 +10,16 @@
         WindowStartupLocation="Manual"
         Background="Black">
     <Grid Background="Black">
-        <Image x:Name="ImageControl" Stretch="Uniform"/>
+        <!-- Pan/zoom/rotate (see ImageCue.Zoom/OffsetX/OffsetY/Rotation) - same mechanism as
+             VideoOutputWindow's, so the two behave identically. -->
+        <Image x:Name="ImageControl" Stretch="Uniform" RenderTransformOrigin="0.5,0.5">
+            <Image.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform x:Name="ZoomTransform"/>
+                    <RotateTransform x:Name="RotateTransformPart"/>
+                    <TranslateTransform x:Name="PanTransform"/>
+                </TransformGroup>
+            </Image.RenderTransform>
+        </Image>
     </Grid>
 </Window>

@@ -40,4 +40,19 @@ public class ImageCue : Cue, IFileCue
             Duration = value > 0 ? TimeSpan.FromSeconds(value) : null;
         }
     }
+
+    // --- Pan/zoom/rotate - same fields and meaning as VideoCue's (see its own comment), applied
+    // as a WPF RenderTransform on ImageOutputWindow's content. ---
+
+    private double _zoom = 1.0;
+    public double Zoom { get => _zoom; set => SetField(ref _zoom, value); }
+
+    private double _offsetX;
+    public double OffsetX { get => _offsetX; set => SetField(ref _offsetX, value); }
+
+    private double _offsetY;
+    public double OffsetY { get => _offsetY; set => SetField(ref _offsetY, value); }
+
+    private double _rotation;
+    public double Rotation { get => _rotation; set => SetField(ref _rotation, value); }
 }

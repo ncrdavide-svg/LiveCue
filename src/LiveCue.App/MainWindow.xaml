@@ -72,10 +72,21 @@
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="BorderBrush" Value="{StaticResource BrandGreenDark}"/>
         </Style>
+        <!-- A disarmed ("Attiva" unchecked) cue is dimmed, instead of looking identical to one
+             that will actually fire on GO/in a chain - the armed rows read as "the real show"
+             just by contrast, with no change needed on their own styling. -->
+        <Style TargetType="DataGridRow">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsArmed}" Value="False">
+                    <Setter Property="Opacity" Value="0.35"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <local:IsNotLastCueConverter x:Key="IsNotLastCueConverter"/>
         <local:SecondsConverter x:Key="SecondsConverter"/>
         <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
         <local:CueKindVisibilityConverter x:Key="CueKindVisibilityConverter"/>
+        <local:RotationSupportedConverter x:Key="RotationSupportedConverter"/>
         <local:FileSizeConverter x:Key="FileSizeConverter"/>
         <local:BitrateConverter x:Key="BitrateConverter"/>
         <local:NullableSecondsConverter x:Key="NullableSecondsConverter"/>
@@ -251,7 +262,7 @@
              the same pattern the cue grid's own "Schermo"/"Continue" columns already use. -->
         <Border Grid.Row="2" Background="{StaticResource BrandGreenDark}" BorderBrush="{StaticResource BrandGreen}" BorderThickness="0,2,0,0"
                 Visibility="{Binding CueList.SelectedCue, Converter={StaticResource NullToVisibilityConverter}}">
-            <TabControl Height="190" Margin="6" DataContext="{Binding CueList.SelectedCue}">
+            <TabControl Height="220" Margin="6" DataContext="{Binding CueList.SelectedCue}">
 
                 <TabItem Header="Informazioni">
                     <!-- The default tab-page chrome paints white; every tab's content is wrapped
@@ -302,6 +313,7 @@
 
                 <TabItem Header="Video" Visibility="{Binding Converter={StaticResource CueKindVisibilityConverter}, ConverterParameter=Video}">
                     <Border Background="{StaticResource BrandGreenDark}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                             <TextBlock Text="Schermo:" VerticalAlignment="Center" Foreground="White" Margin="0,0,8,0"/>
@@ -333,7 +345,44 @@
                                 <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Saturation, StringFormat=F1}" Foreground="White" VerticalAlignment="Center"/>
                             </Grid>
                         </StackPanel>
+
+                        <!-- Zoom/posizione/rotazione: proprietà presenti sia su VideoCue che su
+                             ImageCue (stessi nomi), quindi questa sezione resta fuori dal blocco
+                             "Filters" (solo video) e vale per entrambi i tipi di cue. -->
+                        <TextBlock Text="Zoom, posizione e rotazione (dal vivo mentre la cue è in riproduzione)" Foreground="#DDD" FontSize="11" Margin="0,14,0,4"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="260"/>
+                                <ColumnDefinition Width="50"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Zoom" Foreground="White" VerticalAlignment="Center"/>
+                            <Slider Grid.Row="0" Grid.Column="1" Minimum="0.2" Maximum="4" Value="{Binding Zoom, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Zoom, StringFormat=F1}" Foreground="White" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Posizione X" Foreground="White" VerticalAlignment="Center"/>
+                            <Slider Grid.Row="1" Grid.Column="1" Minimum="-600" Maximum="600" Value="{Binding OffsetX, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding OffsetX, StringFormat=F0}" Foreground="White" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Posizione Y" Foreground="White" VerticalAlignment="Center"/>
+                            <Slider Grid.Row="2" Grid.Column="1" Minimum="-600" Maximum="600" Value="{Binding OffsetY, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding OffsetY, StringFormat=F0}" Foreground="White" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Rotazione" Foreground="White" VerticalAlignment="Center"
+                                       IsEnabled="{Binding Converter={StaticResource RotationSupportedConverter}}"/>
+                            <Slider Grid.Row="3" Grid.Column="1" Minimum="-180" Maximum="180" Value="{Binding Rotation, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
+                                    IsEnabled="{Binding Converter={StaticResource RotationSupportedConverter}}"/>
+                            <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding Rotation, StringFormat=F0}" Foreground="White" VerticalAlignment="Center"
+                                       IsEnabled="{Binding Converter={StaticResource RotationSupportedConverter}}"/>
+                        </Grid>
+                        <TextBlock Text="La rotazione non è disponibile per le cue video: la superficie video non può essere ruotata (funziona solo per le immagini)."
+                                   Foreground="#FFD27A" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding Converter={StaticResource CueKindVisibilityConverter}, ConverterParameter=Filters}"/>
                     </StackPanel>
+                    </ScrollViewer>
                     </Border>
                 </TabItem>
 
