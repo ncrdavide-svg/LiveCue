@@ -154,6 +154,11 @@
                         </StackPanel>
                     </Grid>
 
+                    <CheckBox Content="Overlay trasparente (canale alpha)" Foreground="#CCC" FontSize="11" Margin="0,2,0,2"
+                              IsChecked="{Binding NewVirtualIsTransparentOverlay}"/>
+                    <TextBlock FontSize="10" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Nessuno sfondo: una cue Immagine con trasparenza (PNG con alpha) mostra ci&#242; che sta sotto invece di coprirlo - utile per loghi/titoli sovrapposti a un video. Vale solo per le immagini: una cue Video qui resta comunque opaca."/>
+
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

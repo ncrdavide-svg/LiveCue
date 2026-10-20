@@ -37,6 +37,14 @@ public record DisplayMode(int Width, int Height, int RefreshRate, int BitsPerPix
 public record ScreenBounds(int X, int Y, int Width, int Height);
 
 /// <summary>
+/// A cue's resolved playback target, with the extra context needed for a transparent overlay
+/// window: which physical monitor it ultimately lands on (so an overlay knows which other
+/// output windows it needs to stay above - see MediaPlayerCuePlayer's Z-order coordination),
+/// and whether the target itself is a transparent-overlay VirtualDisplay.
+/// </summary>
+public record ResolvedOutputTarget(ScreenBounds Bounds, string? HostDeviceName, bool IsTransparentOverlay);
+
+/// <summary>
 /// Enumerates physical displays and changes their resolution via the Win32 display API.
 /// Raw P/Invoke is used instead of System.Windows.Forms.Screen so this stays usable
 /// from a UI-agnostic core library.
@@ -157,6 +165,42 @@ public static class DisplayManager
 
         warning = "schermo della cue non trovato e nessun monitor secondario collegato";
         return null;
+    }
+
+    /// <summary>
+    /// Which physical monitor a resolved output rectangle actually lands on, found by its
+    /// top-left point. Works for every case ResolveOutputBounds can return - a physical target,
+    /// a virtual display (its host), or the "no secondary monitor" fallback - without having to
+    /// duplicate that method's own fallback logic here.
+    /// </summary>
+    public static DisplayInfo? FindHostDisplay(ScreenBounds bounds, IEnumerable<DisplayInfo> physicalDisplays)
+        => physicalDisplays.FirstOrDefault(d =>
+            bounds.X >= d.X && bounds.X < d.X + d.Width &&
+            bounds.Y >= d.Y && bounds.Y < d.Y + d.Height);
+
+    /// <summary>
+    /// Everything PlayAsync needs to open an output window: the rectangle (via
+    /// ResolveOutputBounds, unchanged), which physical monitor it lands on, and whether the
+    /// target itself is a transparent-overlay VirtualDisplay (false for anything else, including
+    /// when the fallback silently redirects to a secondary monitor - at that point it's not the
+    /// original target anymore, so any transparency it asked for no longer applies).
+    /// </summary>
+    public static ResolvedOutputTarget? ResolveOutputTarget(string? targetId, IEnumerable<DisplayInfo> physicalDisplays,
+        IEnumerable<VirtualDisplay> virtualDisplays, out string? warning)
+    {
+        var physicalList = physicalDisplays as IReadOnlyList<DisplayInfo> ?? physicalDisplays.ToList();
+        var virtualList = virtualDisplays as IReadOnlyList<VirtualDisplay> ?? virtualDisplays.ToList();
+
+        var bounds = ResolveOutputBounds(targetId, physicalList, virtualList, out warning);
+        if (bounds is null) return null;
+
+        // Only true when targetId's own direct (non-fallback) lookup actually succeeded: once
+        // ResolveOutputBounds has fallen back to a secondary monitor, the original target (and
+        // whatever transparency it asked for) is no longer what's being shown.
+        var isTransparentOverlay = warning is null
+            && (virtualList.FirstOrDefault(v => v.Id == targetId)?.IsTransparentOverlay ?? false);
+        var hostDeviceName = FindHostDisplay(bounds, physicalList)?.DeviceName;
+        return new ResolvedOutputTarget(bounds, hostDeviceName, isTransparentOverlay);
     }
 
     public static List<DisplayMode> GetAvailableModes(string deviceName)

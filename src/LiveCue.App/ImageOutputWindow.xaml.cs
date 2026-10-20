@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using LiveCue.Core.Services;
 
@@ -27,10 +28,19 @@ public partial class ImageOutputWindow : Window
         PanTransform.Y = offsetY;
     }
 
-    public ImageOutputWindow(ScreenBounds bounds, string filePath)
+    /// <param name="isTransparentOverlay">
+    /// True for a VirtualDisplay.IsTransparentOverlay target: no painted background, so a PNG's
+    /// own alpha channel shows whatever is behind this window (desktop, or another cue's output
+    /// window on the same monitor - see OverlayZOrderTracker for keeping this one above those).
+    /// </param>
+    public ImageOutputWindow(ScreenBounds bounds, string filePath, bool isTransparentOverlay = false)
     {
         InitializeComponent();
         Bounds = bounds;
+
+        var background = isTransparentOverlay ? Brushes.Transparent : Brushes.Black;
+        Background = background;
+        RootGrid.Background = background;
 
         // OnLoad + Freeze: reads the whole file up front and releases the handle immediately, so
         // the source file can be replaced/deleted without affecting what's already on screen, and

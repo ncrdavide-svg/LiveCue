@@ -14,7 +14,7 @@ public sealed class ProjectFileTests : IDisposable
     [Fact]
     public void SaveLoad_RoundTripsCuesAndVirtualDisplays_KeepingTargetLinked()
     {
-        var virtualDisplay = new VirtualDisplay { Name = "Palco", HostDeviceName = @"\\.\DISPLAY2", OffsetX = 10, OffsetY = 20, Width = 1280, Height = 720 };
+        var virtualDisplay = new VirtualDisplay { Name = "Palco", HostDeviceName = @"\\.\DISPLAY2", OffsetX = 10, OffsetY = 20, Width = 1280, Height = 720, IsTransparentOverlay = true };
         var list = new CueList();
         var video = new VideoCue { Number = "1", Name = "Intro", FilePath = Path.Combine(_dir, "intro.mp4"), TargetDisplayId = virtualDisplay.Id, Loop = true };
         var audio = new AudioCue { Number = "2", FilePath = Path.Combine(_dir, "music.wav"), Volume = 0.5, PreWait = TimeSpan.FromSeconds(2) };
@@ -31,6 +31,7 @@ public sealed class ProjectFileTests : IDisposable
         var loadedDisplay = Assert.Single(loadedDisplays);
         Assert.Equal(virtualDisplay.Id, loadedDisplay.Id);
         Assert.Equal((10, 20, 1280, 720), (loadedDisplay.OffsetX, loadedDisplay.OffsetY, loadedDisplay.Width, loadedDisplay.Height));
+        Assert.True(loadedDisplay.IsTransparentOverlay);
 
         var loadedVideo = Assert.IsType<VideoCue>(loaded.Cues[0]);
         Assert.Equal(video.Id, loadedVideo.Id);

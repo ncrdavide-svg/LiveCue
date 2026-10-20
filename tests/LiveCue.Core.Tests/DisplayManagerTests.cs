@@ -60,4 +60,42 @@ public class DisplayManagerTests
     {
         Assert.Null(DisplayManager.ResolveBounds("nope", new[] { Primary }, Array.Empty<VirtualDisplay>()));
     }
+
+    [Fact]
+    public void FindHostDisplay_ReturnsDisplayContainingPoint()
+    {
+        var host = DisplayManager.FindHostDisplay(new ScreenBounds(2660, 50, 1280, 720), new[] { Primary, Secondary });
+        Assert.Equal(Secondary, host);
+    }
+
+    [Fact]
+    public void ResolveOutputTarget_PhysicalDisplay_IsNeverTransparent()
+    {
+        var target = DisplayManager.ResolveOutputTarget(Secondary.Id, new[] { Primary, Secondary }, Array.Empty<VirtualDisplay>(), out _);
+        Assert.NotNull(target);
+        Assert.Equal(Secondary.DeviceName, target!.HostDeviceName);
+        Assert.False(target.IsTransparentOverlay);
+    }
+
+    [Fact]
+    public void ResolveOutputTarget_TransparentOverlay_CarriesHostAndFlag()
+    {
+        var virtualDisplay = new VirtualDisplay { HostDeviceName = Secondary.DeviceName, OffsetX = 100, OffsetY = 50, Width = 1280, Height = 720, IsTransparentOverlay = true };
+        var target = DisplayManager.ResolveOutputTarget(virtualDisplay.Id, new[] { Primary, Secondary }, new[] { virtualDisplay }, out _);
+        Assert.NotNull(target);
+        Assert.Equal(new ScreenBounds(2660, 50, 1280, 720), target!.Bounds);
+        Assert.Equal(Secondary.DeviceName, target.HostDeviceName);
+        Assert.True(target.IsTransparentOverlay);
+    }
+
+    [Fact]
+    public void ResolveOutputTarget_FallbackToSecondary_IsNeverTransparent()
+    {
+        var virtualDisplay = new VirtualDisplay { HostDeviceName = @"\\.\DISPLAY9", IsTransparentOverlay = true };
+        var target = DisplayManager.ResolveOutputTarget(virtualDisplay.Id, new[] { Primary, Secondary }, new[] { virtualDisplay }, out var warning);
+        Assert.NotNull(target);
+        Assert.Equal(Secondary.DeviceName, target!.HostDeviceName);
+        Assert.False(target.IsTransparentOverlay);
+        Assert.NotNull(warning);
+    }
 }

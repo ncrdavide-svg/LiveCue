@@ -34,8 +34,19 @@ public class VirtualDisplay : INotifyPropertyChanged
     private int _height = 1080;
     public int Height { get => _height; set => SetField(ref _height, value); }
 
+    /// <summary>
+    /// A transparent overlay layer instead of an opaque "stage" rectangle: its output window has
+    /// no painted background, so an ImageCue with alpha (e.g. a PNG logo/lower-third) shows
+    /// whatever is behind it - the desktop, or another cue's output window on the same monitor.
+    /// Video cues targeting it still play, but stay fully opaque: LibVLC's video surface is a
+    /// native child window, and a WPF layered (AllowsTransparency) window does not composite a
+    /// child hwnd's own rendering at all - see ImageOutputWindow for the non-overlay case.
+    /// </summary>
+    private bool _isTransparentOverlay;
+    public bool IsTransparentOverlay { get => _isTransparentOverlay; set => SetField(ref _isTransparentOverlay, value); }
+
     [JsonIgnore]
-    public string Label => $"{Name} ({Width}x{Height} virtuale)";
+    public string Label => $"{Name} ({Width}x{Height}{(IsTransparentOverlay ? " overlay trasparente" : " virtuale")})";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
