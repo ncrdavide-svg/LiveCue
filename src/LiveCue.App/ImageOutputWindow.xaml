@@ -8,8 +8,13 @@
         ShowActivated="False"
         Focusable="False"
         WindowStartupLocation="Manual"
-        Background="Black">
-    <Grid Background="Black">
+        AllowsTransparency="True">
+    <!-- Window/Grid Background is set from code-behind: opaque black normally, or fully
+         transparent for a VirtualDisplay.IsTransparentOverlay target - see ApplyBackground.
+         AllowsTransparency is always on even for the opaque case: unlike VideoOutputWindow this
+         window never hosts a native child hwnd (just a plain WPF Image), so it loses nothing by
+         always being layered. -->
+    <Grid x:Name="RootGrid">
         <!-- Pan/zoom/rotate (see ImageCue.Zoom/OffsetX/OffsetY/Rotation) - same mechanism as
              VideoOutputWindow's, so the two behave identically. -->
         <Image x:Name="ImageControl" Stretch="Uniform" RenderTransformOrigin="0.5,0.5">

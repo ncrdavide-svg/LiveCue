@@ -366,10 +366,12 @@
                             <Slider Grid.Row="0" Grid.Column="1" Minimum="0.2" Maximum="4" Value="{Binding Zoom, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Zoom, StringFormat=F1}" Foreground="White" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Posizione X" Foreground="White" VerticalAlignment="Center"/>
-                            <Slider Grid.Row="1" Grid.Column="1" Minimum="-600" Maximum="600" Value="{Binding OffsetX, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                            <!-- +/-2000px: copre lo spostamento da bordo a bordo anche su schermi grandi
+                                 (es. un 4K da 3840-4096px di larghezza), fisici o virtuali. -->
+                            <Slider Grid.Row="1" Grid.Column="1" Minimum="-2000" Maximum="2000" Value="{Binding OffsetX, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding OffsetX, StringFormat=F0}" Foreground="White" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Posizione Y" Foreground="White" VerticalAlignment="Center"/>
-                            <Slider Grid.Row="2" Grid.Column="1" Minimum="-600" Maximum="600" Value="{Binding OffsetY, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
+                            <Slider Grid.Row="2" Grid.Column="1" Minimum="-2000" Maximum="2000" Value="{Binding OffsetY, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding OffsetY, StringFormat=F0}" Foreground="White" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="3" Grid.Column="0" Text="Rotazione" Foreground="White" VerticalAlignment="Center"
                                        IsEnabled="{Binding Converter={StaticResource RotationSupportedConverter}}"/>

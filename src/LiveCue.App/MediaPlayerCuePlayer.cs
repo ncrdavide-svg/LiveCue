@@ -37,8 +37,11 @@ public class MediaPlayerCuePlayer : ICuePlayer
     private const string AudioOutputModule = "mmdevice";
 
     private readonly LibVLC _libVlc;
-    private readonly Func<string?, ScreenBounds?> _resolveBounds;
+    private readonly Func<string?, ResolvedOutputTarget?> _resolveTarget;
     private readonly CueList _cueList;
+    /// <summary>Keeps a transparent overlay window (VirtualDisplay.IsTransparentOverlay) visually
+    /// above every other output window on the same physical monitor - see OverlayZOrderTracker.</summary>
+    private readonly OverlayZOrderTracker _overlayZOrder = new();
     private readonly Dictionary<Guid, MediaPlayer> _activePlayers = new();
     private readonly Dictionary<Guid, VideoOutputWindow> _activeWindows = new();
     private readonly Dictionary<Guid, ImageOutputWindow> _activeImageWindows = new();
@@ -69,10 +72,10 @@ public class MediaPlayerCuePlayer : ICuePlayer
     /// </summary>
     public event Action<Cue, string>? CueFailed;
 
-    public MediaPlayerCuePlayer(LibVLC libVlc, Func<string?, ScreenBounds?> resolveBounds, CueList cueList)
+    public MediaPlayerCuePlayer(LibVLC libVlc, Func<string?, ResolvedOutputTarget?> resolveTarget, CueList cueList)
     {
         _libVlc = libVlc;
-        _resolveBounds = resolveBounds;
+        _resolveTarget = resolveTarget;
         _cueList = cueList;
     }
 
@@ -459,18 +462,23 @@ public class MediaPlayerCuePlayer : ICuePlayer
         }
 
         VideoOutputWindow? window = null;
+        string? hostDeviceName = null;
         if (cue is VideoCue videoCue)
         {
-            var bounds = _resolveBounds(videoCue.TargetDisplayId);
-            if (bounds is null)
+            var target = _resolveTarget(videoCue.TargetDisplayId);
+            if (target is null)
             {
                 CueFailed?.Invoke(cue, "schermo di uscita non trovato e nessun monitor secondario collegato");
                 return Task.CompletedTask;
             }
             // Always a fresh window, even if another cue is already showing on the same screen:
             // it becomes a new layer on top, the earlier cue keeps playing untouched underneath.
-            window = new VideoOutputWindow(bounds);
+            // Never transparent even on a transparent-overlay VirtualDisplay: LibVLC's video
+            // surface is a native child window, which a WPF layered (AllowsTransparency) window
+            // does not composite at all - see VirtualDisplay.IsTransparentOverlay.
+            window = new VideoOutputWindow(target.Bounds);
             window.ApplyTransform(videoCue.Zoom, videoCue.OffsetX, videoCue.OffsetY, videoCue.Rotation);
+            hostDeviceName = target.HostDeviceName;
         }
 
         var media = new Media(_libVlc, new Uri(cue.FilePath));
@@ -552,16 +560,19 @@ public class MediaPlayerCuePlayer : ICuePlayer
             window.Show();
             _activeWindows[cue.Id] = window;
             OutputWindowOpened?.Invoke(cue.Id, window.Handle, window.Bounds);
+            // A video window is never itself a transparent overlay (see above) - only relevant
+            // here if an overlay for this same monitor is already open and needs to stay on top.
+            _overlayZOrder.WindowOpened(hostDeviceName, window.Handle, isOverlay: false);
         }
 
-        _ = RunUntilFinishedAsync(cue, player, media, window, finished.Task, Complete, OnCuePropertyChanged, ct);
+        _ = RunUntilFinishedAsync(cue, player, media, window, hostDeviceName, finished.Task, Complete, OnCuePropertyChanged, ct);
         player.Play();
         return firstPassDone.Task;
     }
 
     /// <summary>Owns the player for its whole life (which, for a loop, outlasts the first pass) and cleans up at the end.</summary>
     private async Task RunUntilFinishedAsync(MediaCue cue, MediaPlayer player, Media media, VideoOutputWindow? window,
-        Task finished, Action complete, PropertyChangedEventHandler onCuePropertyChanged, CancellationToken ct)
+        string? hostDeviceName, Task finished, Action complete, PropertyChangedEventHandler onCuePropertyChanged, CancellationToken ct)
     {
         // Complete explicitly too: if the token is already cancelled, Stop() runs before
         // Play() and VLC never raises Stopped.
@@ -628,8 +639,8 @@ public class MediaPlayerCuePlayer : ICuePlayer
             return;
         }
 
-        var bounds = _resolveBounds(cue.TargetDisplayId);
-        if (bounds is null)
+        var target = _resolveTarget(cue.TargetDisplayId);
+        if (target is null)
         {
             CueFailed?.Invoke(cue, "schermo di uscita non trovato e nessun monitor secondario collegato");
             return;
@@ -640,7 +651,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
         {
             // Always a fresh window, same as video cues: a newer image cue on the same screen
             // just layers on top rather than replacing whatever's already showing there.
-            window = new ImageOutputWindow(bounds, cue.FilePath);
+            window = new ImageOutputWindow(target.Bounds, cue.FilePath, target.IsTransparentOverlay);
             window.ApplyTransform(cue.Zoom, cue.OffsetX, cue.OffsetY, cue.Rotation);
         }
         catch (Exception ex)
@@ -669,6 +680,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
         _activeImageWindows[cue.Id] = window;
         window.Show();
         OutputWindowOpened?.Invoke(cue.Id, window.Handle, window.Bounds);
+        _overlayZOrder.WindowOpened(target.HostDeviceName, window.Handle, target.IsTransparentOverlay);
 
         try
         {
@@ -702,6 +714,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
                 _activeImageWindows.Remove(cue.Id);
                 OutputWindowClosed?.Invoke(cue.Id);
             }
+            _overlayZOrder.WindowClosed(target.HostDeviceName, window.Handle);
             if (_imageStopSources.TryGetValue(cue.Id, out var currentSource) && currentSource == stopSource)
                 _imageStopSources.Remove(cue.Id);
             window.Close();

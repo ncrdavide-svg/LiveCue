@@ -89,7 +89,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     /// <summary>Monitors the operator turned off via "Attivo" in the Monitor window, keyed by
     /// DeviceName — excluded from every "pick a target screen" list AND from actual playback
-    /// (see ResolveBounds), not just hidden cosmetically.</summary>
+    /// (see ResolveTarget), not just hidden cosmetically.</summary>
     private readonly HashSet<string> _disabledMonitors = new();
 
     /// <summary>Keeps every enabled (non-primary) monitor showing black and ready, instead of the desktop.</summary>
@@ -155,6 +155,13 @@ public class MainViewModel : INotifyPropertyChanged
         set => SetField(ref _newVirtualOffsetY, value);
     }
 
+    private bool _newVirtualIsTransparentOverlay;
+    public bool NewVirtualIsTransparentOverlay
+    {
+        get => _newVirtualIsTransparentOverlay;
+        set => SetField(ref _newVirtualIsTransparentOverlay, value);
+    }
+
     private VirtualDisplay? _editingVirtualDisplay;
 
     private bool _isEditingVirtualDisplay;
@@ -203,7 +210,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     public MainViewModel()
     {
-        _player = new MediaPlayerCuePlayer(App.VlcInstance!, ResolveBounds, CueList);
+        _player = new MediaPlayerCuePlayer(App.VlcInstance!, ResolveTarget, CueList);
 
         _player.CueFailed += (cue, reason) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
             StatusMessage = $"Cue {cue.Number} \"{cue.Name}\" non eseguita: {reason}");
@@ -288,7 +295,7 @@ public class MainViewModel : INotifyPropertyChanged
         StatusMessage = "PANIC — tutto fermato.";
     }
 
-    private ScreenBounds? ResolveBounds(string? targetId)
+    private ResolvedOutputTarget? ResolveTarget(string? targetId)
     {
         // Always re-query the OS here instead of using the cached Displays collection: that
         // collection is only refreshed on startup or on "Aggiorna elenco monitor", so if a
@@ -299,10 +306,10 @@ public class MainViewModel : INotifyPropertyChanged
         var livePhysical = DisplayManager.GetDisplays().Where(d => !_disabledMonitors.Contains(d.DeviceName));
 
         // When this returns null the player reports the cue as not played (CueFailed).
-        var bounds = DisplayManager.ResolveOutputBounds(targetId, livePhysical, VirtualDisplays, out var warning);
-        if (bounds is not null && warning is not null)
+        var target = DisplayManager.ResolveOutputTarget(targetId, livePhysical, VirtualDisplays, out var warning);
+        if (target is not null && warning is not null)
             StatusMessage = $"Attenzione: {warning}.";
-        return bounds;
+        return target;
     }
 
     private void RefreshDisplays()
@@ -414,6 +421,7 @@ public class MainViewModel : INotifyPropertyChanged
         NewVirtualHeight = virtualDisplay.Height;
         NewVirtualOffsetX = virtualDisplay.OffsetX;
         NewVirtualOffsetY = virtualDisplay.OffsetY;
+        NewVirtualIsTransparentOverlay = virtualDisplay.IsTransparentOverlay;
         IsEditingVirtualDisplay = true;
         VirtualDisplayFormButtonText = "Salva modifiche";
     }
@@ -438,6 +446,7 @@ public class MainViewModel : INotifyPropertyChanged
         IsEditingVirtualDisplay = false;
         VirtualDisplayFormButtonText = "Crea monitor virtuale";
         NewVirtualDisplayName = $"Virtuale {VirtualDisplays.Count + 1}";
+        NewVirtualIsTransparentOverlay = false;
     }
 
     private void CreateVirtualDisplay()
@@ -449,10 +458,11 @@ public class MainViewModel : INotifyPropertyChanged
         if (_editingVirtualDisplay is { } editing)
         {
             // Same Id, mutated in place: cues already targeting this virtual display stay linked to it.
-            var (oldName, oldHost, oldOffsetX, oldOffsetY, oldWidth, oldHeight) =
-                (editing.Name, editing.HostDeviceName, editing.OffsetX, editing.OffsetY, editing.Width, editing.Height);
+            var (oldName, oldHost, oldOffsetX, oldOffsetY, oldWidth, oldHeight, oldOverlay) =
+                (editing.Name, editing.HostDeviceName, editing.OffsetX, editing.OffsetY, editing.Width, editing.Height, editing.IsTransparentOverlay);
             var newHost = NewVirtualHostDisplay.DeviceName;
-            var (newOffsetX, newOffsetY, newWidth, newHeight) = (NewVirtualOffsetX, NewVirtualOffsetY, NewVirtualWidth, NewVirtualHeight);
+            var (newOffsetX, newOffsetY, newWidth, newHeight, newOverlay) =
+                (NewVirtualOffsetX, NewVirtualOffsetY, NewVirtualWidth, NewVirtualHeight, NewVirtualIsTransparentOverlay);
 
             editing.Name = name;
             editing.HostDeviceName = newHost;
@@ -460,12 +470,13 @@ public class MainViewModel : INotifyPropertyChanged
             editing.OffsetY = newOffsetY;
             editing.Width = newWidth;
             editing.Height = newHeight;
+            editing.IsTransparentOverlay = newOverlay;
             CancelEditVirtualDisplay();
 
             _undo.Push(new UndoableAction(
                 $"Modifica monitor virtuale \"{oldName}\"",
-                redo: () => { editing.Name = name; editing.HostDeviceName = newHost; editing.OffsetX = newOffsetX; editing.OffsetY = newOffsetY; editing.Width = newWidth; editing.Height = newHeight; },
-                undo: () => { editing.Name = oldName; editing.HostDeviceName = oldHost; editing.OffsetX = oldOffsetX; editing.OffsetY = oldOffsetY; editing.Width = oldWidth; editing.Height = oldHeight; }));
+                redo: () => { editing.Name = name; editing.HostDeviceName = newHost; editing.OffsetX = newOffsetX; editing.OffsetY = newOffsetY; editing.Width = newWidth; editing.Height = newHeight; editing.IsTransparentOverlay = newOverlay; },
+                undo: () => { editing.Name = oldName; editing.HostDeviceName = oldHost; editing.OffsetX = oldOffsetX; editing.OffsetY = oldOffsetY; editing.Width = oldWidth; editing.Height = oldHeight; editing.IsTransparentOverlay = oldOverlay; }));
             return;
         }
 
@@ -477,6 +488,7 @@ public class MainViewModel : INotifyPropertyChanged
             OffsetY = NewVirtualOffsetY,
             Width = NewVirtualWidth,
             Height = NewVirtualHeight,
+            IsTransparentOverlay = NewVirtualIsTransparentOverlay,
         };
         VirtualDisplays.Add(created);
 
