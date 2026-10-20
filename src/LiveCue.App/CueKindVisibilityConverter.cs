@@ -46,3 +46,27 @@ public class RotationSupportedConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// Prefixes a cue type's name with the same glyph already used on its "Add ... Cue" toolbar
+/// button, so the "Tipo" column reads at a glance in a long list instead of needing the text.
+/// </summary>
+public class CueTypeIconConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var icon = (value as CueType?) switch
+        {
+            CueType.Video => "▶",  // ▶, matches "Video Cue"
+            CueType.Audio => "♪",  // ♪, matches "Audio Cue"
+            CueType.Image => "▭",  // ▭, matches "Image Cue"
+            CueType.Fade => "◐",   // ◐, matches "Fade Cue"
+            CueType.Stop => "■",   // ■, matches "Stop Cue"
+            _ => null,
+        };
+        return icon is null ? $"{value}" : $"{icon} {value}";
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
