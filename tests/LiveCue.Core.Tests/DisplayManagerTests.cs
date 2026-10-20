@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using LiveCue.Core.Models;
 using LiveCue.Core.Services;
 
@@ -97,5 +99,44 @@ public class DisplayManagerTests
         Assert.Equal(Secondary.DeviceName, target!.HostDeviceName);
         Assert.False(target.IsTransparentOverlay);
         Assert.NotNull(warning);
+    }
+
+    [Fact]
+    public void SyncDisplayList_SameMonitors_NeverRaisesReset()
+    {
+        // A Reset is exactly the bug this guards against: a WPF ComboBox bound to this collection
+        // via SelectedValuePath + a TwoWay SelectedValue briefly matches nothing during a Reset,
+        // and writes that back as null into whatever it's bound to (see RefreshDisplays' caller).
+        var collection = new ObservableCollection<DisplayInfo>(new[] { Primary, Secondary });
+        var sawReset = false;
+        collection.CollectionChanged += (_, e) => sawReset |= e.Action == NotifyCollectionChangedAction.Reset;
+
+        // A fresh re-read of the same two monitors - new DisplayInfo instances, same DeviceNames.
+        var refreshed = new[] { Primary with { }, Secondary with { } };
+        DisplayManager.SyncDisplayList(collection, refreshed);
+
+        Assert.False(sawReset);
+        Assert.Equal(refreshed, collection);
+    }
+
+    [Fact]
+    public void SyncDisplayList_AddsAndRemovesByDeviceName()
+    {
+        var collection = new ObservableCollection<DisplayInfo>(new[] { Primary });
+        DisplayManager.SyncDisplayList(collection, new[] { Primary, Secondary });
+        Assert.Equal(new[] { Primary, Secondary }, collection);
+
+        DisplayManager.SyncDisplayList(collection, new[] { Secondary });
+        Assert.Equal(new[] { Secondary }, collection);
+    }
+
+    [Fact]
+    public void SyncDisplayList_UpdatesChangedFieldsInPlace()
+    {
+        var collection = new ObservableCollection<DisplayInfo>(new[] { Primary });
+        var renamed = Primary with { MonitorName = "Dell S2721DGF" };
+        DisplayManager.SyncDisplayList(collection, new[] { renamed });
+
+        Assert.Equal("Dell S2721DGF", collection[0].MonitorName);
     }
 }

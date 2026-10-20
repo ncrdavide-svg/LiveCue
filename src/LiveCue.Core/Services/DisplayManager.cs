@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using LiveCue.Core.Models;
@@ -201,6 +202,37 @@ public static class DisplayManager
             && (virtualList.FirstOrDefault(v => v.Id == targetId)?.IsTransparentOverlay ?? false);
         var hostDeviceName = FindHostDisplay(bounds, physicalList)?.DeviceName;
         return new ResolvedOutputTarget(bounds, hostDeviceName, isTransparentOverlay);
+    }
+
+    /// <summary>
+    /// Updates an ObservableCollection&lt;DisplayInfo&gt; to match <paramref name="latest"/>, matched
+    /// by DeviceName, without ever calling Clear(): a Clear() raises a Reset notification, and a
+    /// UI control bound to the collection through a "SelectedValuePath + TwoWay SelectedValue"
+    /// ComboBox (as the cue grid's own "Schermo" column is) briefly has nothing to match while
+    /// the collection is empty - WPF then writes that back as null into whatever the ComboBox's
+    /// SelectedValue was bound to. Reproduced live: adding any cue (which also refreshes the
+    /// display list) silently wiped every other cue's target screen. Updating entries in place,
+    /// and only removing/inserting the ones that actually changed, means an ordinary refresh
+    /// (same monitors, just re-read) fires nothing but a handful of Replace events - no Reset.
+    /// </summary>
+    public static void SyncDisplayList(ObservableCollection<DisplayInfo> collection, IReadOnlyList<DisplayInfo> latest)
+    {
+        for (var i = collection.Count - 1; i >= 0; i--)
+            if (latest.All(d => d.DeviceName != collection[i].DeviceName))
+                collection.RemoveAt(i);
+
+        for (var i = 0; i < latest.Count; i++)
+        {
+            var existingIndex = -1;
+            for (var j = 0; j < collection.Count; j++)
+            {
+                if (collection[j].DeviceName == latest[i].DeviceName) { existingIndex = j; break; }
+            }
+            if (existingIndex < 0)
+                collection.Insert(Math.Min(i, collection.Count), latest[i]);
+            else
+                collection[existingIndex] = latest[i];
+        }
     }
 
     public static List<DisplayMode> GetAvailableModes(string deviceName)
