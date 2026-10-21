@@ -9,7 +9,11 @@ Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il p
 ## 1. Dove siamo (in breve)
 
 - **Tutto è in `master`** (21/10): tutto il lavoro fino a PR #18 compresa, più i quattro branch del 20/10 uniti il 21/10 (§5e). Build pulita, **81 test su 81** superati.
-- **Installer pubblicato**: [Release v1.0.0](https://github.com/ncrdavide-svg/LiveCue/releases/tag/v1.0.0) su GitHub, con `LiveCue-Setup-1.0.0.exe` allegato (self-contained win-x64, non serve installare nient'altro). **Attenzione: la v1.0.0 è del 19/10 e NON contiene** PR #18 né il lavoro del §5e — per distribuirli serve una nuova release (§7).
+- **Ultima versione pubblicata: [Release v1.1.0](https://github.com/ncrdavide-svg/LiveCue/releases/tag/v1.1.0)** (21/10), con `LiveCue-Setup-1.1.0.exe` allegato (self-contained win-x64, non serve installare nient'altro). Contiene tutto fino al §5e. Si installa sopra la 1.0.0 come aggiornamento.
+  - Link da distribuire, sempre all'ultima versione: https://github.com/ncrdavide-svg/LiveCue/releases/latest
+  - Il tag `v1.1.0` punta a `05be40d`, il commit da cui è stato creato il setup. SHA256 del setup: `4815A2E36B8F660183E0FE99D3748E91F64C8619A007FDF55B324575498DE4A1`.
+  - La versione nel codice (`LiveCue.App.csproj`) è ora 1.1.0. Per la prossima release: aumentarla, rigenerare il setup con `-Version` uguale, creare il tag e la release (`gh release create`).
+  - Release precedente: v1.0.0 (19/10).
 - Branch remoti già uniti ma non ancora cancellati su GitHub (si possono eliminare quando capita): `feature/fade-cue`, `feature/installer`, `feature/monitor-identify-rename-screentest`, `feature/monitor-toggle-and-image-cue-v2`, `feature/stop-cue-and-monitor-blackout`, `feature/undo-redo`, `feature/volume-slider-and-maximized-startup`, `fix/panic-deadlock`, `fix/review-issues`, `fix/video-window-focus-steal`, `docs/update-status`, `docs/sync-status-20-10`, `feature/transparent-overlay-virtual-screens`, `fix/schermo-reset-on-add-cue`, `feature/space-go-fix-and-onair-highlight`, `feature/cue-type-icon-in-tipo-column`, `feature/buymeacoffee-support-dialog`.
 - `feature/monitor-toggle-and-image-cue` è un vecchio **WIP superato** dalla v2 (PR #9) e **non è stato unito**: si può cancellare.
 - **Setup:** si genera con lo script dell'installer (vedi §8); non è nel repository (`artifacts/` è escluso da Git), va rigenerato su ogni PC — oppure si scarica l'ultima release già pronta da GitHub.
@@ -44,6 +48,7 @@ Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il p
 | 20/10 | `feature/cue-type-icon-in-tipo-column` | Icona del tipo di cue nella colonna "Tipo" (§5e) |
 | 20/10 | `feature/buymeacoffee-support-dialog` | Finestra di supporto "Buy Me a Coffee" a ogni avvio (§5e) |
 | 21/10 ufficio | merge | I quattro branch del 20/10 e il report del 20/10 uniti in `master` |
+| 21/10 ufficio | — | Release `v1.1.0` pubblicata su GitHub con l'installer allegato |
 
 ---
 
@@ -186,14 +191,13 @@ Ancora da provare dal vivo:
 ## 7. Prossimi passi suggeriti
 
 1. **Provare dal vivo** gli scenari del §6.
-2. **Nuova release (es. v1.1.0)**: la v1.0.0 su GitHub non contiene PR #18 né il §5e. Rigenerare il setup (§8) e pubblicarlo.
-3. **Finestra Buy Me a Coffee**: oggi compare a **ogni** avvio con 3 secondi di attesa forzata. In un'app da spettacolo può dare fastidio (es. riavvio di emergenza durante uno show). Da valutare: mostrarla una volta ogni tanto, o mai dopo la prima chiusura, o renderla disattivabile.
-4. **Annulla/Ripeti anche per le modifiche ai campi** della griglia (oggi copre solo aggiunta/eliminazione/riordino cue e monitor virtuali).
-5. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
-6. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
-7. **Rotazione per le cue video**: oggi funziona solo su immagine (vedi §5d) per il limite "airspace" di WPF/LibVLC. Per supportarla servirebbe renderizzare il frame video su una superficie gestita da WPF invece che sull'hwnd nativo di LibVLC (es. callback di render software/D3D) — lavoro di interop nativo non banale, da valutare solo se la rotazione sui video diventa davvero necessaria.
-8. **Pulizia branch remoti** già uniti ma non cancellati (lista in §1).
-9. **Export automatico dell'installer su ogni release**: oggi la build e la pubblicazione su GitHub Releases sono manuali (vedi §8); si potrebbe automatizzare con una GitHub Action quando si taggano le versioni.
+2. **Finestra Buy Me a Coffee**: oggi compare a **ogni** avvio con 3 secondi di attesa forzata. In un'app da spettacolo può dare fastidio (es. riavvio di emergenza durante uno show). Da valutare: mostrarla una volta ogni tanto, o mai dopo la prima chiusura, o renderla disattivabile.
+3. **Annulla/Ripeti anche per le modifiche ai campi** della griglia (oggi copre solo aggiunta/eliminazione/riordino cue e monitor virtuali).
+4. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
+5. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
+6. **Rotazione per le cue video**: oggi funziona solo su immagine (vedi §5d) per il limite "airspace" di WPF/LibVLC. Per supportarla servirebbe renderizzare il frame video su una superficie gestita da WPF invece che sull'hwnd nativo di LibVLC (es. callback di render software/D3D) — lavoro di interop nativo non banale, da valutare solo se la rotazione sui video diventa davvero necessaria.
+7. **Pulizia branch remoti** già uniti ma non cancellati (lista in §1).
+8. **Export automatico dell'installer su ogni release**: oggi la build e la pubblicazione su GitHub Releases sono manuali (vedi §8); si potrebbe automatizzare con una GitHub Action quando si taggano le versioni.
 
 ~~Colonna Volume~~ — fatta (PR #3). ~~Salvare i nomi dei monitor~~ — fatta (PR #12). ~~Barra spaziatrice = GO~~ — fatta (PR #12). ~~Cue con file mancante in rosso~~ — fatta (PR #12). ~~Fade in/out~~ — fatta.
 
