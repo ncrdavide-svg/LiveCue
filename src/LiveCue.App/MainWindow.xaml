@@ -105,6 +105,7 @@
         <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
         <local:CueKindVisibilityConverter x:Key="CueKindVisibilityConverter"/>
         <local:RotationSupportedConverter x:Key="RotationSupportedConverter"/>
+        <local:CueTypeIconConverter x:Key="CueTypeIconConverter"/>
         <local:FileSizeConverter x:Key="FileSizeConverter"/>
         <local:BitrateConverter x:Key="BitrateConverter"/>
         <local:NullableSecondsConverter x:Key="NullableSecondsConverter"/>
@@ -191,7 +192,7 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="#" Binding="{Binding Number}" Width="40"/>
-                    <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="70" IsReadOnly="True"/>
+                    <DataGridTextColumn Header="Tipo" Binding="{Binding Type, Converter={StaticResource CueTypeIconConverter}}" Width="80" IsReadOnly="True"/>
                     <DataGridTextColumn Header="Nome" Binding="{Binding Name}" Width="160"/>
                     <DataGridTextColumn Header="File" Binding="{Binding FilePath}" Width="260">
                         <DataGridTextColumn.ElementStyle>
