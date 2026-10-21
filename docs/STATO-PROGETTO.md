@@ -1,6 +1,6 @@
 # LiveCue — Report del lavoro e stato del progetto
 
-*Ultimo aggiornamento: 16 ottobre 2026*
+*Ultimo aggiornamento: 20 ottobre 2026*
 
 Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il punto in cui siamo arrivati e come riprendere da un altro PC. **Va aggiornato alla fine di ogni sessione di lavoro**, da qualsiasi PC: è l'unico "ponte" tra le sessioni (le conversazioni con Claude non si vedono da un PC all'altro).
 
@@ -8,9 +8,10 @@ Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il p
 
 ## 1. Dove siamo (in breve)
 
-- **Tutto è in `master`** (16/10): il lavoro del 15/10 in ufficio, tutto quello della sera da casa (compresi Identifica/Rinomina/Test schermo e Annulla/Ripeti) e questo report. Build pulita, **46 test su 46** superati.
-- Tutti gli altri branch (`fix/review-issues`, `feature/*`, `docs/*`) sono già uniti: si possono cancellare.
-- **Setup:** si genera con lo script dell'installer (vedi §8); non è nel repository (`artifacts/` è escluso da Git), va rigenerato su ogni PC.
+- **Tutto è in `master`** (20/10): tutto il lavoro fino a PR #16 compresa. Build pulita, **74 test su 74** superati. Nessuna PR o issue aperta su GitHub.
+- **Primo installer pubblicato**: [Release v1.0.0](https://github.com/ncrdavide-svg/LiveCue/releases/tag/v1.0.0) su GitHub, con `LiveCue-Setup-1.0.0.exe` allegato (self-contained win-x64, non serve installare nient'altro).
+- Branch remoti già uniti ma non ancora cancellati su GitHub (si possono eliminare quando capita): `feature/fade-cue`, `feature/installer`, `feature/monitor-identify-rename-screentest`, `feature/monitor-toggle-and-image-cue`, `feature/monitor-toggle-and-image-cue-v2`, `feature/stop-cue-and-monitor-blackout`, `feature/undo-redo`, `feature/volume-slider-and-maximized-startup`, `fix/panic-deadlock`, `fix/review-issues`, `fix/video-window-focus-steal`, `docs/update-status`.
+- **Setup:** si genera con lo script dell'installer (vedi §8); non è nel repository (`artifacts/` è escluso da Git), va rigenerato su ogni PC — oppure si scarica l'ultima release già pronta da GitHub.
 
 ### Storia (in ordine)
 
@@ -28,6 +29,14 @@ Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il p
 | 15/10 casa | `4162eec` | Annulla/Ripeti (§5) |
 | 16/10 ufficio | merge | Tutti i branch uniti in `master` |
 | 16/10 ufficio | `fix/panic-deadlock` | **Blocco dell'app premendo PANIC** con due video a tutto schermo (§5b) |
+| 18/10 | PR #9 | Monitor abilita/disabilita, cue Immagine |
+| 18/10 | PR #10 | Fix: Stop cue bloccava una catena di Immagini; Annulla non ripristinava Continua |
+| 18/10 | PR #12 | Cue con file mancante in rosso, Spazio = GO, nomi monitor salvati nel progetto |
+| 18/10 | PR #13 | Barra degli strumenti colorata per funzione, icone per tipo di cue |
+| 18/10 | PR #14 | Pannello inspector stile QLab (tab Informazioni/Video/Audio/In-Out) (§5c) |
+| 19/10 | PR #15 | Tab In/Out: scrubber di taglio con forma d'onda audio e miniature video (§5c) |
+| 19/10 | PR #16 | Countdown che rispetta il taglio, cue Immagine in Monitor Live, zoom/posizione/rotazione dal vivo, cue disattivate sbiadite (§5d) |
+| 19/10 | — | Prima release pubblicata su GitHub: `v1.0.0` con l'installer allegato |
 
 ---
 
@@ -112,6 +121,31 @@ Il programma di prova non è nel repository (era in una cartella temporanea): se
 
 ---
 
+## 5c. Pannello inspector e tab In/Out (18-19/10, PR #14 e #15)
+
+Nuovo pannello in basso nella finestra principale, stile QLab, con 4 tab per la cue selezionata:
+
+- **Informazioni**: dati del file (dimensione, durata, risoluzione, bitrate, codec, canali audio).
+- **Video**: monitor di destinazione, correzione colore dal vivo (luminosità/contrasto/saturazione, solo cue video), e da PR #16 anche zoom/posizione/rotazione (vedi §5d).
+- **Audio**: scelta del dispositivo di uscita audio.
+- **In/Out**: scrubber grafico per tagliare inizio/fine del file, con **forma d'onda audio** e **miniature video** generate dal vivo (analisi in background su thread separato, con cache su disco per non rianalizzare lo stesso file più volte).
+
+La forma d'onda viene letta dai callback audio nativi di LibVLC (`SetAudioFormatCallback`/`SetAudioCallbacks`), le miniature con `TakeSnapshot` durante una riproduzione normale (snapshot opportunistico quando `TimeChanged` attraversa ogni istante target — l'approccio "pausa, cerca, scatta" si è rivelato inaffidabile). Qui sono stati **trovati e corretti due crash reali** (`AccessViolationException`) durante lo sviluppo: non scrivere mai nel parametro nativo `format` dei callback audio, e tenere in vita i delegate passati a LibVLC con variabili tipizzate esplicite + `GC.KeepAlive`.
+
+*Verificato dal vivo con un video reale scaricato da YouTube (transcodificato in H.264/AAC).*
+
+## 5d. Countdown, cue Immagine in Monitor Live, zoom/posizione/rotazione, cue disattivate sbiadite (19/10, PR #16)
+
+Quattro richieste indipendenti, tutte verificate dal vivo:
+
+- **Countdown rispetta il taglio**: prima contava sempre fino alla fine del file intero; ora conta fino a `TrimEnd` (o alla fine vera se non tagliato).
+- **Cue Immagine in Monitor Live**: anche le cue immagine ora compaiono nell'anteprima "Monitor Live" (prima solo le cue video). Gli eventi `OutputWindowOpened`/`OutputWindowClosed` sono stati generalizzati per funzionare con entrambi i tipi di cue.
+- **Zoom, posizione X/Y, rotazione dal vivo**: nuovi controlli nel tab Video, applicati mentre la cue è in riproduzione. Scelto un `RenderTransform` WPF (non un filtro LibVLC) per non aggiungere altro rischio di interop nativa, e perché funziona identico per video e immagini.
+  - **Limite noto**: la **rotazione non ha alcun effetto sulle cue video** — la superficie video di LibVLC è una finestra Win32 nativa annidata in WPF, che si può ridimensionare/spostare (zoom e posizione funzionano) ma non ruotare (limite "airspace" di WPF: un hwnd figlio nativo non supporta la rotazione via `RenderTransform`). Lo slider Rotazione è **disabilitato automaticamente** per le cue video con una nota in UI; su cue immagine funziona normalmente (nessun hwnd nativo, solo un controllo `Image` WPF).
+- **Cue disattivate più sbiadite**: righe con "Attiva" deselezionato a opacità 0.35, per far risaltare le cue armate in una lista lunga.
+
+---
+
 ## 6. Cosa NON è stato verificato a mano
 
 Verificati dal vivo (sera del 15/10): blocco dell'operatore + ESC globale; Identifica/Rinomina/Test schermo su 3 monitor con scaling misto. Verificato con programma di prova (16/10): PANIC e fine naturale con due video a tutto schermo su due monitor (§5b).
@@ -128,15 +162,14 @@ Ancora da provare dal vivo:
 ## 7. Prossimi passi suggeriti
 
 1. **Provare dal vivo** gli scenari del §6.
-2. **Salvare i nomi personalizzati dei monitor** (oggi si perdono alla chiusura).
-3. **Annulla/Ripeti anche per le modifiche ai campi** della griglia.
-4. **Barra spaziatrice = GO** (come QLab); ora c'è solo ESC = PANIC.
-5. **Cue con file mancante evidenziate in rosso** nella lista.
-6. **Fade in/out** e cue "Stop"/"Fade" (i tipi `Stop`, `Wait`, `Group` sono già previsti in `CueType` ma non implementati).
-7. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
-8. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
+2. **Annulla/Ripeti anche per le modifiche ai campi** della griglia (oggi copre solo aggiunta/eliminazione/riordino cue e monitor virtuali).
+3. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
+4. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
+5. **Rotazione per le cue video**: oggi funziona solo su immagine (vedi §5d) per il limite "airspace" di WPF/LibVLC. Per supportarla servirebbe renderizzare il frame video su una superficie gestita da WPF invece che sull'hwnd nativo di LibVLC (es. callback di render software/D3D) — lavoro di interop nativo non banale, da valutare solo se la rotazione sui video diventa davvero necessaria.
+6. **Pulizia branch remoti** già uniti ma non cancellati (lista in §1).
+7. **Export automatico dell'installer su ogni release**: oggi la build e la pubblicazione su GitHub Releases sono manuali (vedi §8); si potrebbe automatizzare con una GitHub Action quando si taggano le versioni.
 
-~~Colonna Volume~~ — fatta (PR #3).
+~~Colonna Volume~~ — fatta (PR #3). ~~Salvare i nomi dei monitor~~ — fatta (PR #12). ~~Barra spaziatrice = GO~~ — fatta (PR #12). ~~Cue con file mancante in rosso~~ — fatta (PR #12). ~~Fade in/out~~ — fatta.
 
 ---
 
@@ -162,5 +195,6 @@ Ancora da provare dal vivo:
    powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1 -Version 1.0.0
    ```
 4. Apri Claude Code nella cartella `LiveCue`: legge da solo `CLAUDE.md` (istruzioni tecniche); chiedigli di leggere questo file per sapere dove eravamo rimasti — e, a fine lavoro, di aggiornarlo e fare il push.
+5. In alternativa a ricompilare l'installer, si può scaricare l'ultima versione già pronta dalla pagina [Releases](https://github.com/ncrdavide-svg/LiveCue/releases) su GitHub.
 
 **PC dell'ufficio:** progetto in `Desktop\livecue\LiveCue`.
