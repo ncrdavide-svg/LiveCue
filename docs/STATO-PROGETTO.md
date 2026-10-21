@@ -1,6 +1,6 @@
 # LiveCue — Report del lavoro e stato del progetto
 
-*Ultimo aggiornamento: 20 ottobre 2026*
+*Ultimo aggiornamento: 21 ottobre 2026*
 
 Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il punto in cui siamo arrivati e come riprendere da un altro PC. **Va aggiornato alla fine di ogni sessione di lavoro**, da qualsiasi PC: è l'unico "ponte" tra le sessioni (le conversazioni con Claude non si vedono da un PC all'altro).
 
@@ -8,9 +8,10 @@ Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il p
 
 ## 1. Dove siamo (in breve)
 
-- **Tutto è in `master`** (20/10): tutto il lavoro fino a PR #16 compresa. Build pulita, **74 test su 74** superati. Nessuna PR o issue aperta su GitHub.
-- **Primo installer pubblicato**: [Release v1.0.0](https://github.com/ncrdavide-svg/LiveCue/releases/tag/v1.0.0) su GitHub, con `LiveCue-Setup-1.0.0.exe` allegato (self-contained win-x64, non serve installare nient'altro).
-- Branch remoti già uniti ma non ancora cancellati su GitHub (si possono eliminare quando capita): `feature/fade-cue`, `feature/installer`, `feature/monitor-identify-rename-screentest`, `feature/monitor-toggle-and-image-cue`, `feature/monitor-toggle-and-image-cue-v2`, `feature/stop-cue-and-monitor-blackout`, `feature/undo-redo`, `feature/volume-slider-and-maximized-startup`, `fix/panic-deadlock`, `fix/review-issues`, `fix/video-window-focus-steal`, `docs/update-status`.
+- **Tutto è in `master`** (21/10): tutto il lavoro fino a PR #18 compresa, più i quattro branch del 20/10 uniti il 21/10 (§5e). Build pulita, **81 test su 81** superati.
+- **Installer pubblicato**: [Release v1.0.0](https://github.com/ncrdavide-svg/LiveCue/releases/tag/v1.0.0) su GitHub, con `LiveCue-Setup-1.0.0.exe` allegato (self-contained win-x64, non serve installare nient'altro). **Attenzione: la v1.0.0 è del 19/10 e NON contiene** PR #18 né il lavoro del §5e — per distribuirli serve una nuova release (§7).
+- Branch remoti già uniti ma non ancora cancellati su GitHub (si possono eliminare quando capita): `feature/fade-cue`, `feature/installer`, `feature/monitor-identify-rename-screentest`, `feature/monitor-toggle-and-image-cue-v2`, `feature/stop-cue-and-monitor-blackout`, `feature/undo-redo`, `feature/volume-slider-and-maximized-startup`, `fix/panic-deadlock`, `fix/review-issues`, `fix/video-window-focus-steal`, `docs/update-status`, `docs/sync-status-20-10`, `feature/transparent-overlay-virtual-screens`, `fix/schermo-reset-on-add-cue`, `feature/space-go-fix-and-onair-highlight`, `feature/cue-type-icon-in-tipo-column`, `feature/buymeacoffee-support-dialog`.
+- `feature/monitor-toggle-and-image-cue` è un vecchio **WIP superato** dalla v2 (PR #9) e **non è stato unito**: si può cancellare.
 - **Setup:** si genera con lo script dell'installer (vedi §8); non è nel repository (`artifacts/` è escluso da Git), va rigenerato su ogni PC — oppure si scarica l'ultima release già pronta da GitHub.
 
 ### Storia (in ordine)
@@ -37,6 +38,12 @@ Questo documento riassume tutto il lavoro fatto su LiveCue con Claude Code, il p
 | 19/10 | PR #15 | Tab In/Out: scrubber di taglio con forma d'onda audio e miniature video (§5c) |
 | 19/10 | PR #16 | Countdown che rispetta il taglio, cue Immagine in Monitor Live, zoom/posizione/rotazione dal vivo, cue disattivate sbiadite (§5d) |
 | 19/10 | — | Prima release pubblicata su GitHub: `v1.0.0` con l'installer allegato |
+| 20/10 | PR #18 | Monitor virtuali "overlay trasparente" per cue Immagine con canale alfa; slider Posizione X/Y fino a ±2000 px (§5e) |
+| 20/10 | `fix/schermo-reset-on-add-cue` | Fix: aggiungere una cue azzerava lo "Schermo" di tutte le altre (§5e) |
+| 20/10 | `feature/space-go-fix-and-onair-highlight` | Fix: Spazio = GO "mangiato" dal focus; cue in onda evidenziate in ambra (§5e) |
+| 20/10 | `feature/cue-type-icon-in-tipo-column` | Icona del tipo di cue nella colonna "Tipo" (§5e) |
+| 20/10 | `feature/buymeacoffee-support-dialog` | Finestra di supporto "Buy Me a Coffee" a ogni avvio (§5e) |
+| 21/10 ufficio | merge | I quattro branch del 20/10 e il report del 20/10 uniti in `master` |
 
 ---
 
@@ -146,6 +153,21 @@ Quattro richieste indipendenti, tutte verificate dal vivo:
 
 ---
 
+## 5e. Overlay trasparenti, fix Schermo e Spazio, icone, Buy Me a Coffee (20/10, uniti il 21/10)
+
+- **Monitor virtuali "overlay trasparente"** (PR #18): un monitor virtuale può essere segnato come *overlay trasparente*; una cue **Immagine** con canale alfa (logo PNG, sottopancia...) mostra quello che c'è dietro — desktop o il video di un'altra cue sullo stesso monitor — invece di coprirlo. `OverlayZOrderTracker` tiene l'overlay sempre sopra le altre uscite sullo stesso monitor, in qualsiasi ordine vengano aperte.
+  - **Limite voluto**: le cue **video** su un overlay restano **opache** — la superficie video di LibVLC è una finestra nativa e una finestra WPF trasparente non la comporrebbe (il video sparirebbe).
+  - Se l'uscita ripiega su un monitor secondario (schermo mancante), la trasparenza non viene applicata.
+  - *Verificato dal vivo* con un video H.264 e un PNG semitrasparente, in entrambi gli ordini di apertura.
+  - Slider **Posizione X/Y** allargati a ±2000 px (prima ±600 non arrivavano ai bordi di uno schermo 4K).
+- **Fix "Schermo" azzerato** (`fix/schermo-reset-on-add-cue`): aggiungendo qualsiasi cue, la colonna "Schermo" di **tutte le altre cue** si svuotava. Causa: l'elenco dei monitor veniva ricostruito con `Clear()` + aggiunta, e durante quel "reset" i menu a tendina WPF scrivevano `null` nel valore collegato. Ora `DisplayManager.SyncDisplayList` aggiorna l'elenco sul posto (toglie solo i monitor spariti, aggiunge solo i nuovi), con test dedicati.
+- **Fix Spazio = GO** (`feature/space-go-fix-and-onair-highlight`): se il focus era rimasto su una casella (Loop/Attiva), un menu o un pulsante, la barra spaziatrice non faceva partire la cue. Ora Spazio fa sempre GO, tranne quando si sta scrivendo in un campo di testo o modificando una cella. *Verificato dal vivo.*
+  - **Cue in onda in ambra**: la riga di una cue che sta suonando/mostrando è evidenziata nell'ambra del logo (nuova proprietà `Cue.IsPlaying`, non salvata). *Verificato dal vivo.*
+- **Icona del tipo nella colonna "Tipo"** (`feature/cue-type-icon-in-tipo-column`): stesso simbolo del pulsante "Aggiungi cue" della barra.
+- **Finestra "Buy Me a Coffee"** (`feature/buymeacoffee-support-dialog`): **a ogni avvio** compare una finestra modale con QR code e link a buymeacoffee.com/cin8; "No, grazie" si attiva dopo 3 secondi. È modale di proposito: una versione non modale finiva nascosta dietro la finestra principale senza modo di recuperarla.
+
+---
+
 ## 6. Cosa NON è stato verificato a mano
 
 Verificati dal vivo (sera del 15/10): blocco dell'operatore + ESC globale; Identifica/Rinomina/Test schermo su 3 monitor con scaling misto. Verificato con programma di prova (16/10): PANIC e fine naturale con due video a tutto schermo su due monitor (§5b).
@@ -155,6 +177,8 @@ Ancora da provare dal vivo:
 - loop + "Continua";
 - richiesta di salvataggio alla chiusura / Nuovo / Apri;
 - Annulla/Ripeti;
+- fix "Schermo" azzerato (§5e): aggiungere cue a una lista che ha già schermi assegnati e controllare che restino;
+- finestra Buy Me a Coffee all'avvio (§5e);
 - installazione del setup su un **altro** PC.
 
 ---
@@ -162,12 +186,14 @@ Ancora da provare dal vivo:
 ## 7. Prossimi passi suggeriti
 
 1. **Provare dal vivo** gli scenari del §6.
-2. **Annulla/Ripeti anche per le modifiche ai campi** della griglia (oggi copre solo aggiunta/eliminazione/riordino cue e monitor virtuali).
-3. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
-4. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
-5. **Rotazione per le cue video**: oggi funziona solo su immagine (vedi §5d) per il limite "airspace" di WPF/LibVLC. Per supportarla servirebbe renderizzare il frame video su una superficie gestita da WPF invece che sull'hwnd nativo di LibVLC (es. callback di render software/D3D) — lavoro di interop nativo non banale, da valutare solo se la rotazione sui video diventa davvero necessaria.
-6. **Pulizia branch remoti** già uniti ma non cancellati (lista in §1).
-7. **Export automatico dell'installer su ogni release**: oggi la build e la pubblicazione su GitHub Releases sono manuali (vedi §8); si potrebbe automatizzare con una GitHub Action quando si taggano le versioni.
+2. **Nuova release (es. v1.1.0)**: la v1.0.0 su GitHub non contiene PR #18 né il §5e. Rigenerare il setup (§8) e pubblicarlo.
+3. **Finestra Buy Me a Coffee**: oggi compare a **ogni** avvio con 3 secondi di attesa forzata. In un'app da spettacolo può dare fastidio (es. riavvio di emergenza durante uno show). Da valutare: mostrarla una volta ogni tanto, o mai dopo la prima chiusura, o renderla disattivabile.
+4. **Annulla/Ripeti anche per le modifiche ai campi** della griglia (oggi copre solo aggiunta/eliminazione/riordino cue e monitor virtuali).
+5. **Doppio clic su `.livecue`** per aprirlo (associazione file nell'installer + apertura da riga di comando nell'app).
+6. **Firma digitale del setup** per togliere l'avviso SmartScreen sugli altri PC (serve un certificato di firma del codice, a pagamento).
+7. **Rotazione per le cue video**: oggi funziona solo su immagine (vedi §5d) per il limite "airspace" di WPF/LibVLC. Per supportarla servirebbe renderizzare il frame video su una superficie gestita da WPF invece che sull'hwnd nativo di LibVLC (es. callback di render software/D3D) — lavoro di interop nativo non banale, da valutare solo se la rotazione sui video diventa davvero necessaria.
+8. **Pulizia branch remoti** già uniti ma non cancellati (lista in §1).
+9. **Export automatico dell'installer su ogni release**: oggi la build e la pubblicazione su GitHub Releases sono manuali (vedi §8); si potrebbe automatizzare con una GitHub Action quando si taggano le versioni.
 
 ~~Colonna Volume~~ — fatta (PR #3). ~~Salvare i nomi dei monitor~~ — fatta (PR #12). ~~Barra spaziatrice = GO~~ — fatta (PR #12). ~~Cue con file mancante in rosso~~ — fatta (PR #12). ~~Fade in/out~~ — fatta.
 
