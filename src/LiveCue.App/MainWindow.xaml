@@ -74,11 +74,29 @@
         </Style>
         <!-- A disarmed ("Attiva" unchecked) cue is dimmed, instead of looking identical to one
              that will actually fire on GO/in a chain - the armed rows read as "the real show"
-             just by contrast, with no change needed on their own styling. -->
+             just by contrast, with no change needed on their own styling. A cue that's actually
+             on air gets the opposite treatment: the logo's own amber (see BAR_CURRENT in
+             tools/make_icon.py), impossible to miss at a glance across a long cue list. -->
         <Style TargetType="DataGridRow">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsArmed}" Value="False">
                     <Setter Property="Opacity" Value="0.35"/>
+                </DataTrigger>
+                <!-- BorderBrush/Thickness only here: DataGridRow.Background loses to the
+                     DataGrid's own RowBackground/AlternatingRowBackground, which keeps
+                     reasserting itself - the fill color has to go on each DataGridCell instead
+                     (see the DataGridCell style below), which isn't subject to that. -->
+                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                    <Setter Property="BorderBrush" Value="#FFB300"/>
+                    <Setter Property="BorderThickness" Value="2"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                    <Setter Property="Background" Value="#FFB300"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>

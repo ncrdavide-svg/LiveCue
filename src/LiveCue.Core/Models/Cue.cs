@@ -47,6 +47,16 @@ public abstract class Cue : INotifyPropertyChanged
     public TimeSpan? RemainingTime { get => _remainingTime; set => SetField(ref _remainingTime, value); }
 
     /// <summary>
+    /// True from the moment this cue actually starts playing/showing until it stops - distinct
+    /// from RemainingTime, which stays null for an Image cue with no DisplaySeconds set (shows
+    /// until stopped, so it has no countdown, but is still very much on air). Drives the cue
+    /// grid's "on air" highlight. Not persisted.
+    /// </summary>
+    private bool _isPlaying;
+    [JsonIgnore]
+    public bool IsPlaying { get => _isPlaying; set => SetField(ref _isPlaying, value); }
+
+    /// <summary>
     /// True when this cue's file (see IFileCue.FilePath) doesn't exist on disk - recomputed by
     /// MediaCue/ImageCue whenever FilePath changes (adding a cue, or loading a project and
     /// resolving its stored paths), so the cue grid can flag it before GO instead of only failing

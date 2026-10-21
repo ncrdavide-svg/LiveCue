@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -53,17 +52,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Space = GO, like QLab. A plain WPF-level shortcut is enough here (unlike PANIC/ESC): a
-    /// video cue's output window can never take keyboard focus (WS_EX_NOACTIVATE), so the main
-    /// window's own key handling always sees it. It's a fallback, not an override: anywhere the
-    /// operator could be typing a literal space (a cue's Name/Notes/Target, an open combo box, a
-    /// focused checkbox/button already using Space for its own purpose) lets it through untouched,
-    /// so naming a cue "Scene 2" never fires one.
+    /// Space = GO, like QLab, and it always fires the selected cue - even right after a
+    /// "Continua"/"Parti insieme" chain auto-advanced the selection, with keyboard focus still
+    /// sitting wherever the operator last clicked (a checkbox, a combo box, a toolbar button).
+    /// None of those are "typing", so none of them should be able to swallow the one key an
+    /// operator relies on mid-show. Only genuine text entry does: a focused TextBox, or a
+    /// DataGridCell actively being edited (its own TextBox editor). A video cue's output window
+    /// can never take keyboard focus either (WS_EX_NOACTIVATE), so the main window's own key
+    /// handling always sees this regardless of which screen a cue is playing on.
     /// </summary>
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Space) return;
-        if (Keyboard.FocusedElement is TextBox or ComboBox or ButtonBase) return;
+        if (Keyboard.FocusedElement is TextBox) return;
         if (Keyboard.FocusedElement is DataGridCell { IsEditing: true }) return;
 
         e.Handled = true;

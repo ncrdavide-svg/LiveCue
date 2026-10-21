@@ -565,6 +565,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
             _overlayZOrder.WindowOpened(hostDeviceName, window.Handle, isOverlay: false);
         }
 
+        cue.IsPlaying = true;
         _ = RunUntilFinishedAsync(cue, player, media, window, hostDeviceName, finished.Task, Complete, OnCuePropertyChanged, ct);
         player.Play();
         return firstPassDone.Task;
@@ -594,6 +595,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
             {
                 _activePlayers.Remove(cue.Id);
                 cue.RemainingTime = null;
+                cue.IsPlaying = false;
             }
 
             if (window is not null && _activeWindows.TryGetValue(cue.Id, out var currentWindow) && currentWindow == window)
@@ -681,6 +683,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
         window.Show();
         OutputWindowOpened?.Invoke(cue.Id, window.Handle, window.Bounds);
         _overlayZOrder.WindowOpened(target.HostDeviceName, window.Handle, target.IsTransparentOverlay);
+        cue.IsPlaying = true;
 
         try
         {
@@ -709,6 +712,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
         {
             cue.PropertyChanged -= OnCuePropertyChanged;
             cue.RemainingTime = null;
+            cue.IsPlaying = false;
             if (_activeImageWindows.TryGetValue(cue.Id, out var current) && current == window)
             {
                 _activeImageWindows.Remove(cue.Id);
@@ -782,6 +786,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
         var duration = TimeSpan.FromSeconds(Math.Max(0, cue.FadeSeconds));
         var startVolume = targetMedia.Volume;
         var start = DateTime.UtcNow;
+        cue.IsPlaying = true;
 
         try
         {
@@ -810,6 +815,7 @@ public class MediaPlayerCuePlayer : ICuePlayer
         finally
         {
             cue.RemainingTime = null;
+            cue.IsPlaying = false;
             if (overlay is not null) overlay.Opacity = 1; // fully black even if the loop above exited early
 
             // Stop (and wait for VLC's native video surface to actually tear down) BEFORE
