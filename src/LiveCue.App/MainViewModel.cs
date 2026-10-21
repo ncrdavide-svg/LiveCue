@@ -316,8 +316,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         var previouslySelectedDevice = SelectedDisplayForResolution?.DeviceName;
 
-        Displays.Clear();
-        EnabledDisplays.Clear();
+        var current = new List<DisplayInfo>();
         foreach (var display in DisplayManager.GetDisplays())
         {
             // Windows' own EDID name ("Generic PnP Monitor"...) is often useless for telling two
@@ -326,10 +325,14 @@ public class MainViewModel : INotifyPropertyChanged
                 ? display with { MonitorName = customName }
                 : display;
             named.IsEnabled = !_disabledMonitors.Contains(display.DeviceName);
-            Displays.Add(named);
-            if (named.IsEnabled)
-                EnabledDisplays.Add(named);
+            current.Add(named);
         }
+
+        // Updated in place (see DisplayManager.SyncDisplayList) rather than Clear()+re-Add(): a
+        // Clear() blanked every cue's "Schermo" selection, not just visually - WPF wrote that
+        // back into every cue's TargetDisplayId as null the moment the list went empty.
+        DisplayManager.SyncDisplayList(Displays, current);
+        DisplayManager.SyncDisplayList(EnabledDisplays, current.Where(d => d.IsEnabled).ToList());
 
         SelectedDisplayForResolution = Displays.FirstOrDefault(d => d.DeviceName == previouslySelectedDevice)
             ?? Displays.FirstOrDefault();
