@@ -1,0 +1,33 @@
+<Window x:Class="LiveCue.App.SupportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        mc:Ignorable="d"
+        Icon="/Assets/LiveCue.ico"
+        Title="LiveCue" Height="480" Width="340"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="False"
+        Background="#FFDD00">
+    <!-- Buy Me a Coffee's own brand colors: yellow #FFDD00 background, near-black ink text,
+         black button - matches the widget look on buymeacoffee.com itself. -->
+    <StackPanel Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="Ti piace LiveCue?" FontSize="18" FontWeight="Bold" Foreground="#0D0C22"
+                   HorizontalAlignment="Center" TextAlignment="Center"/>
+        <TextBlock Text="Se ti &#232; utile, offrimi un caff&#232;" FontSize="13" Foreground="#0D0C22"
+                   HorizontalAlignment="Center" TextAlignment="Center" Margin="0,4,0,16"/>
+
+        <Border Background="White" CornerRadius="8" Padding="10" HorizontalAlignment="Center">
+            <Image Source="/Assets/BuyMeACoffeeQR.png" Width="180" Height="180"/>
+        </Border>
+
+        <TextBlock Text="buymeacoffee.com/cin8" FontSize="14" FontWeight="SemiBold" Foreground="#0D0C22"
+                   HorizontalAlignment="Center" Margin="0,14,0,20" Cursor="Hand"
+                   TextDecorations="Underline" MouseLeftButtonUp="Link_MouseLeftButtonUp"/>
+
+        <Button x:Name="NoThanksButton" Content="No, grazie" IsEnabled="False"
+                Click="NoThanksButton_Click" HorizontalAlignment="Center"
+                Padding="18,8" Background="#0D0C22" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+    </StackPanel>
+</Window>

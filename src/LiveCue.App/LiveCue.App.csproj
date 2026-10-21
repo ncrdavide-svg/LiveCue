@@ -13,6 +13,7 @@
   <ItemGroup>
     <Resource Include="Assets\LiveCue.ico" />
     <Resource Include="Assets\LiveCue.png" />
+    <Resource Include="Assets\BuyMeACoffeeQR.png" />
   </ItemGroup>
 
   <PropertyGroup>

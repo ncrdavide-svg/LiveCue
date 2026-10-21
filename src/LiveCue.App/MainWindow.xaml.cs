@@ -49,6 +49,13 @@ public partial class MainWindow : Window
         Closed += (_, _) => UnregisterHotKey(new WindowInteropHelper(this).Handle, PanicHotKeyId);
 
         PreviewKeyDown += MainWindow_PreviewKeyDown;
+
+        // Modal: a non-modal owned window here was observed losing z-order (fell behind
+        // MainWindow, unrecoverable since it's not in the taskbar) the moment anything else -
+        // even an unrelated OS notification toast - briefly took focus. ShowDialog() can't be
+        // lost that way. Only after this window is actually up: Owner needs a shown/initialized
+        // window to attach to.
+        Loaded += (_, _) => new SupportWindow { Owner = this }.ShowDialog();
     }
 
     /// <summary>
