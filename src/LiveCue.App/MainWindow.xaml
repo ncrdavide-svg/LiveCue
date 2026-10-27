@@ -157,6 +157,7 @@
             <Separator Margin="8,0"/>
             <Button Content="Monitor..." Click="OpenMonitorManager_Click" Background="{StaticResource MonitorBlue}" Foreground="White"/>
             <Button Content="Monitor live..." Click="OpenMonitorPreview_Click" Background="{StaticResource MonitorBlue}" Foreground="White"/>
+            <Button Content="Companion..." Click="OpenCompanionWindow_Click" Background="{StaticResource MonitorBlue}" Foreground="White"/>
             <Separator Margin="8,0"/>
             <Button Content="GO" Command="{Binding GoCommand}" Background="#2E7D32" Foreground="White" FontWeight="Bold" Width="90"/>
             <Button Content="PANIC (ESC)" Command="{Binding PanicCommand}" Background="#C62828" Foreground="White" FontWeight="Bold" Width="110"/>

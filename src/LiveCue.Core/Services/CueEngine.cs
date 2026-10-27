@@ -26,13 +26,23 @@ public class CueEngine
     /// from an earlier GO, so multiple cues can run together, started at different times. Only
     /// Stop()/Panic() stops everything.
     /// </summary>
-    public async Task GoAsync()
+    public Task GoAsync()
     {
         // A disarmed selected cue is skipped (GO fires the next armed one) instead of making
         // GO silently do nothing and leaving the operator stuck on it.
         var cue = FirstArmedFrom(Math.Max(0, _cueList.SelectedIndex));
-        if (cue is null) return;
+        return cue is null ? Task.CompletedTask : FireAsync(cue);
+    }
 
+    /// <summary>
+    /// Fires a specific cue directly - e.g. a remote-control button (Stream Deck/Companion) that
+    /// targets one exact cue - regardless of what's currently selected in the grid. A disarmed
+    /// cue is silently skipped, same as GO landing on one.
+    /// </summary>
+    public Task FireCueAsync(Cue cue) => cue.IsArmed ? FireAsync(cue) : Task.CompletedTask;
+
+    private async Task FireAsync(Cue cue)
+    {
         var cts = new CancellationTokenSource();
         _activeRuns.Add(cts);
         try

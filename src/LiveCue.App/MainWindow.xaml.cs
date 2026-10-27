@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private MainViewModel ViewModel => (MainViewModel)DataContext;
     private MonitorManagerWindow? _monitorWindow;
     private MonitorPreviewWindow? _monitorPreviewWindow;
+    private CompanionWindow? _companionWindow;
     private Point _dragStartPoint;
 
     public MainWindow()
@@ -47,6 +48,7 @@ public partial class MainWindow : Window
             RegisterHotKey(hwnd, PanicHotKeyId, ModNoRepeat, VkEscape);
         };
         Closed += (_, _) => UnregisterHotKey(new WindowInteropHelper(this).Handle, PanicHotKeyId);
+        Closed += (_, _) => ViewModel.ShutdownRemoteApi();
 
         PreviewKeyDown += MainWindow_PreviewKeyDown;
 
@@ -116,6 +118,18 @@ public partial class MainWindow : Window
 
         _monitorPreviewWindow.Show();
         _monitorPreviewWindow.Activate();
+    }
+
+    private void OpenCompanionWindow_Click(object sender, RoutedEventArgs e)
+    {
+        if (_companionWindow is null)
+        {
+            _companionWindow = new CompanionWindow(ViewModel) { Owner = this };
+            _companionWindow.Closed += (_, _) => _companionWindow = null;
+        }
+
+        _companionWindow.Show();
+        _companionWindow.Activate();
     }
 
     // --- Reordering cues by dragging the row's grip handle ---

@@ -143,6 +143,39 @@ public class CueEngineTests
     }
 
     [Fact]
+    public async Task FireCueAsync_PlaysThatCue_RegardlessOfSelection()
+    {
+        var (list, player, engine) = Create(Audio("1"), Audio("2"), Audio("3"));
+        list.SelectedIndex = 0;
+
+        await engine.FireCueAsync(list.Cues[2]);
+
+        Assert.Equal(new[] { list.Cues[2] }, player.Played);
+    }
+
+    [Fact]
+    public async Task FireCueAsync_Disarmed_DoesNothing()
+    {
+        var disarmed = Audio("1");
+        disarmed.IsArmed = false;
+        var (_, player, engine) = Create(disarmed);
+
+        await engine.FireCueAsync(disarmed);
+
+        Assert.Empty(player.Played);
+    }
+
+    [Fact]
+    public async Task FireCueAsync_StillChainsIntoTheNextCue()
+    {
+        var (list, player, engine) = Create(Audio("1", ContinueMode.StartTogether), Audio("2"));
+
+        await engine.FireCueAsync(list.Cues[0]);
+
+        Assert.Equal(list.Cues, player.Played);
+    }
+
+    [Fact]
     public async Task Stop_CancelsPreWait_AndStopsPlayer()
     {
         var first = Audio("1");

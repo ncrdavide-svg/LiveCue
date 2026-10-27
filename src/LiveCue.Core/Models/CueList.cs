@@ -72,6 +72,22 @@ public class CueList : INotifyPropertyChanged
         return next < Cues.Count ? Cues[next] : null;
     }
 
+    /// <summary>Moves the selection to the next cue (for a remote control's "giù" button). No-op
+    /// on an empty list; clamped at the last cue, never wraps around.</summary>
+    public void SelectNext()
+    {
+        if (Cues.Count == 0) return;
+        SelectedIndex = Math.Min(SelectedIndex + 1, Cues.Count - 1);
+    }
+
+    /// <summary>Moves the selection to the previous cue ("su"). No-op on an empty list; clamped
+    /// at the first cue. From no selection (-1), lands on the first cue rather than staying put.</summary>
+    public void SelectPrevious()
+    {
+        if (Cues.Count == 0) return;
+        SelectedIndex = Math.Max(SelectedIndex - 1, 0);
+    }
+
     /// <summary>
     /// Every cue's current ContinueMode. Move/Remove can silently reset whichever cue ends up
     /// last to "Non continua" (<see cref="EnforceLastCueDoesNotContinue"/>) as a side effect
