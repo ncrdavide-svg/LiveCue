@@ -1,6 +1,10 @@
-# LiveCue
+<p align="center"><img src="src/LiveCue.App/Assets/LiveCue.png" width="160" alt="LiveCue"></p>
 
-App di show control per Windows in stile QLab: una lista di cue audio e video da lanciare con **GO**, con uscite video su più monitor (anche "monitor virtuali", cioè zone di uno schermo reale) e un pulsante **PANIC** (ESC) che ferma tutto.
+<h1 align="center">LiveCue</h1>
+
+<p align="center">App di show control per Windows in stile QLab: una lista di cue audio e video da lanciare con <b>GO</b>, con uscite video su più monitor (anche "monitor virtuali", cioè zone di uno schermo reale, trasparenti o no) e un pulsante <b>PANIC</b> (ESC) che ferma tutto.</p>
+
+<p align="center"><a href="https://github.com/ncrdavide-svg/LiveCue/releases/latest"><b>⬇ Scarica l'installer</b></a></p>
 
 ## Requisiti
 
@@ -46,3 +50,9 @@ Crea `artifacts\installer\LiveCue-Setup-1.0.0.exe` (serve [Inno Setup 6](https:/
 ## Stato del progetto
 
 Cronologia del lavoro, cosa è stato corretto e prossimi passi: [docs/STATO-PROGETTO.md](docs/STATO-PROGETTO.md).
+
+## Supporta il progetto
+
+Se LiveCue ti è utile, offrimi un caffè: [buymeacoffee.com/cin8](https://buymeacoffee.com/cin8)
+
+Altre app e contatti: [GitHub](https://github.com/ncrdavide-svg)

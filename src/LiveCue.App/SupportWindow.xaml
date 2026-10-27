@@ -5,7 +5,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         mc:Ignorable="d"
         Icon="/Assets/LiveCue.ico"
-        Title="LiveCue" Height="480" Width="340"
+        Title="LiveCue" Height="510" Width="340"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="False"
@@ -23,8 +23,15 @@
         </Border>
 
         <TextBlock Text="buymeacoffee.com/cin8" FontSize="14" FontWeight="SemiBold" Foreground="#0D0C22"
-                   HorizontalAlignment="Center" Margin="0,14,0,20" Cursor="Hand"
+                   HorizontalAlignment="Center" Margin="0,14,0,14" Cursor="Hand"
                    TextDecorations="Underline" MouseLeftButtonUp="Link_MouseLeftButtonUp"/>
+
+        <!-- Stesso link "altre app e contatti" già presente in LiveCount, così da ogni app si
+             arriva al profilo GitHub e si scoprono le altre. -->
+        <TextBlock HorizontalAlignment="Center" Margin="0,0,0,20" FontSize="11" Foreground="#0D0C22">
+            <Run Text="Altre app e contatti: "/>
+            <Hyperlink Click="GitHubLink_Click" Foreground="#0D0C22" FontWeight="SemiBold">GitHub</Hyperlink>
+        </TextBlock>
 
         <Button x:Name="NoThanksButton" Content="No, grazie" IsEnabled="False"
                 Click="NoThanksButton_Click" HorizontalAlignment="Center"
