@@ -77,6 +77,7 @@ public class MainViewModel : INotifyPropertyChanged
     public string RedoTooltip => _undo.RedoDescription is { } d ? $"Ripeti: {d}" : "Ripeti";
 
     private readonly MediaPlayerCuePlayer _player;
+    private readonly RemoteApi _remoteApi;
     private readonly SystemMonitor _systemMonitor = new();
     private readonly DispatcherTimer _systemMonitorTimer;
     private bool _isSamplingSystemStats;
@@ -199,6 +200,36 @@ public class MainViewModel : INotifyPropertyChanged
         set => SetField(ref _statusMessage, value);
     }
 
+    // ---- Companion / Stream Deck (controllo remoto) ----
+    private int _companionPort = 8787;
+    public int CompanionPort
+    {
+        get => _companionPort;
+        set
+        {
+            var clamped = Math.Max(1024, Math.Min(65535, value));
+            if (!SetField(ref _companionPort, clamped)) return;
+            StartRemoteApi();
+        }
+    }
+
+    /// <summary>0 = Stream Deck (5x3, 15 tasti), 1 = Stream Deck XL (8x4, 32 tasti).</summary>
+    private int _companionDeckIndex;
+    public int CompanionDeckIndex
+    {
+        get => _companionDeckIndex;
+        set => SetField(ref _companionDeckIndex, value);
+    }
+
+    private string _companionStatusText = "";
+    public string CompanionStatusText
+    {
+        get => _companionStatusText;
+        private set => SetField(ref _companionStatusText, value);
+    }
+
+    public RelayCommand ExportCompanionCommand { get; }
+
     private string _systemStatusText = "";
     public string SystemStatusText
     {
@@ -216,9 +247,11 @@ public class MainViewModel : INotifyPropertyChanged
             StatusMessage = $"Cue {cue.Number} \"{cue.Name}\" non eseguita: {reason}");
 
         Engine = new CueEngine(CueList, _player);
+        _remoteApi = new RemoteApi(HandleRemoteApiCommand);
 
         GoCommand = new RelayCommand(Engine.GoAsync);
         PanicCommand = new RelayCommand(Panic);
+        ExportCompanionCommand = new RelayCommand(ExportCompanion);
         AddVideoCueCommand = new RelayCommand(AddVideoCue);
         AddAudioCueCommand = new RelayCommand(AddAudioCue);
         AddImageCueCommand = new RelayCommand(AddImageCue);
@@ -260,7 +293,12 @@ public class MainViewModel : INotifyPropertyChanged
         _systemMonitorTimer.Tick += (_, _) => UpdateSystemStats();
         _systemMonitorTimer.Start();
         UpdateSystemStats();
+
+        StartRemoteApi();
     }
+
+    /// <summary>Closes the Companion/Stream Deck listener - call on app shutdown (MainWindow.Closed).</summary>
+    public void ShutdownRemoteApi() => _remoteApi.Dispose();
 
     private async void UpdateSystemStats()
     {
@@ -293,6 +331,93 @@ public class MainViewModel : INotifyPropertyChanged
     {
         Engine.Panic();
         StatusMessage = "PANIC — tutto fermato.";
+    }
+
+    // ---------------- controllo remoto (Companion / Stream Deck) ----------------
+
+    private void StartRemoteApi()
+    {
+        if (_remoteApi.Start(CompanionPort))
+        {
+            var addresses = RemoteApi.LocalAddresses();
+            CompanionStatusText = $"● Attivo su porta {CompanionPort}" +
+                (addresses.Count > 0 ? $"  ({string.Join(", ", addresses)})" : "");
+        }
+        else
+        {
+            CompanionStatusText = _remoteApi.Error ?? "Errore sconosciuto";
+        }
+    }
+
+    /// <summary>Chiamato dal thread del server: i comandi vengono eseguiti sul thread dell'interfaccia.</summary>
+    private string? HandleRemoteApiCommand(string command, Dictionary<string, string> args)
+    {
+        try
+        {
+            return Application.Current?.Dispatcher.Invoke(() => ExecuteRemoteApiCommand(command, args));
+        }
+        catch
+        {
+            return "{\"ok\":false}";
+        }
+    }
+
+    private string? ExecuteRemoteApiCommand(string command, Dictionary<string, string> args)
+    {
+        switch (command)
+        {
+            case "go": _ = Engine.GoAsync(); break;
+            case "panic": Panic(); break;
+            case "next": CueList.SelectNext(); break;
+            case "prev": CueList.SelectPrevious(); break;
+            case "cue":
+                if (!args.TryGetValue("number", out var number))
+                    return "{\"ok\":false,\"error\":\"parametro number mancante\"}";
+                var cue = CueList.Cues.FirstOrDefault(c => c.Number == number);
+                if (cue is null) return "{\"ok\":false,\"error\":\"cue non trovata\"}";
+                _ = Engine.FireCueAsync(cue);
+                break;
+            case "status": case "": break;
+            default: return null;
+        }
+        return StatusJson();
+    }
+
+    private string StatusJson()
+    {
+        var selected = CueList.SelectedCue;
+        return "{\"ok\":true,\"selected_number\":" + RemoteApi.JsonString(selected?.Number) +
+               ",\"selected_name\":" + RemoteApi.JsonString(selected?.Name) +
+               ",\"cue_count\":" + CueList.Cues.Count + "}";
+    }
+
+    private void ExportCompanion()
+    {
+        // Companion sullo stesso PC usa 127.0.0.1; da un altro PC serve l'indirizzo di rete di questo.
+        var ips = RemoteApi.LocalAddresses();
+        var host = "127.0.0.1";
+        if (ips.Count > 0)
+        {
+            var answer = MessageBox.Show(
+                $"Companion è installato su questo stesso PC?\n\nSì = questo PC (127.0.0.1)\nNo = un altro PC in rete ({ips[0]})",
+                "Esporta per Companion", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            if (answer == MessageBoxResult.Cancel) return;
+            if (answer == MessageBoxResult.No) host = ips[0];
+        }
+
+        int cols = CompanionDeckIndex == 1 ? 8 : 5;
+        int rows = CompanionDeckIndex == 1 ? 4 : 3;
+        var json = CompanionExport.Build(CueList.Cues, $"http://{host}:{CompanionPort}/api/", cols, rows, out var hidden);
+
+        var dialog = new SaveFileDialog { Filter = "Configurazione Companion (*.companionconfig)|*.companionconfig", FileName = "LiveCue.companionconfig" };
+        if (dialog.ShowDialog() != true) return;
+        File.WriteAllText(dialog.FileName, json, new System.Text.UTF8Encoding(false));
+
+        var msg = "File creato.\n\nIn Companion: Import / Export > Import, scegli il file e importa la pagina \"LiveCue\" su una pagina vuota. " +
+                  "Quando aggiungi, rinomini o riordini le cue, esporta di nuovo e reimporta.";
+        if (hidden > 0)
+            msg += $"\n\nAttenzione: {hidden} cue non entrano nei tasti del deck scelto e finiscono su righe non visibili.";
+        MessageBox.Show(msg, "Esporta per Companion", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private ResolvedOutputTarget? ResolveTarget(string? targetId)

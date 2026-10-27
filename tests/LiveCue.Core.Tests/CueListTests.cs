@@ -58,4 +58,51 @@ public sealed class CueListTests
 
         Assert.Equal(ContinueMode.Continue, second.ContinueMode);
     }
+
+    [Fact]
+    public void SelectNext_ClampsAtLastCue_NeverWraps()
+    {
+        var list = new CueList();
+        list.Cues.Add(new AudioCue { Number = "1" });
+        list.Cues.Add(new AudioCue { Number = "2" });
+        list.SelectedIndex = 1;
+
+        list.SelectNext();
+
+        Assert.Equal(1, list.SelectedIndex);
+    }
+
+    [Fact]
+    public void SelectPrevious_ClampsAtFirstCue()
+    {
+        var list = new CueList();
+        list.Cues.Add(new AudioCue { Number = "1" });
+        list.Cues.Add(new AudioCue { Number = "2" });
+        list.SelectedIndex = 0;
+
+        list.SelectPrevious();
+
+        Assert.Equal(0, list.SelectedIndex);
+    }
+
+    [Fact]
+    public void SelectNext_FromNoSelection_LandsOnFirstCue()
+    {
+        var list = new CueList();
+        list.Cues.Add(new AudioCue { Number = "1" });
+        list.Cues.Add(new AudioCue { Number = "2" });
+
+        list.SelectNext();
+
+        Assert.Equal(0, list.SelectedIndex);
+    }
+
+    [Fact]
+    public void SelectNextAndPrevious_OnEmptyList_DoNothing()
+    {
+        var list = new CueList();
+        list.SelectNext();
+        list.SelectPrevious();
+        Assert.Equal(-1, list.SelectedIndex);
+    }
 }
