@@ -43,5 +43,6 @@ Requisiti: .NET 9 SDK, Inno Setup 6 (`winget install JRSoftware.InnoSetup`).
 - **`CueList`:** la regola "l'ultima cue non continua" NON va applicata sulle aggiunte, altrimenti il caricamento di un progetto azzera tutti i ContinueMode.
 - **Tempi:** pre/post-wait si inseriscono in secondi tramite `TimeInput`/`SecondsConverter`; il binding diretto a `TimeSpan` legge "5" come 5 giorni.
 - **Statistiche di sistema:** la lettura dei contatori GPU dura ~0,5 s → solo su thread in background.
+- **Ogni Release su GitHub deve contenere anche `LiveCue-Setup.exe`** (lo stesso installer con nome fisso, creato da `build-installer.ps1`): il pulsante di download del README punta a `releases/latest/download/LiveCue-Setup.exe`, che senza quel file nell'ultima Release dà errore 404.
 - **Installer:** la publish va in una cartella temporanea corta: da percorsi lunghi i plugin VLC superano i 260 caratteri e Inno Setup fallisce.
 - I file `.livecue` salvano i percorsi media **relativi** al progetto.

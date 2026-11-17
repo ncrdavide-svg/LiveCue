@@ -29,4 +29,8 @@ Write-Host "Creazione installer..."
 & $iscc "/DAppVersion=$Version" "/DPublishDir=$publishDir" (Join-Path $PSScriptRoot "LiveCue.iss")
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup non riuscito" }
 
-Get-Item (Join-Path $root "artifacts\installer\LiveCue-Setup-$Version.exe")
+$setup = Join-Path $root "artifacts\installer\LiveCue-Setup-$Version.exe"
+# Same file under a fixed name: the README's download button points to
+# releases/latest/download/LiveCue-Setup.exe, so every release must carry it too.
+Copy-Item $setup (Join-Path $root "artifacts\installer\LiveCue-Setup.exe") -Force
+Get-Item $setup, (Join-Path $root "artifacts\installer\LiveCue-Setup.exe")

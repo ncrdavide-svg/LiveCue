@@ -4,7 +4,27 @@
 
 <p align="center">App di show control per Windows in stile QLab: una lista di cue audio e video da lanciare con <b>GO</b>, con uscite video su più monitor (anche "monitor virtuali", cioè zone di uno schermo reale, trasparenti o no) e un pulsante <b>PANIC</b> (ESC) che ferma tutto.</p>
 
-<p align="center"><a href="https://github.com/ncrdavide-svg/LiveCue/releases/latest"><b>⬇ Scarica l'installer</b></a></p>
+<p align="center">
+  <a href="https://github.com/ncrdavide-svg/LiveCue/releases/latest/download/LiveCue-Setup.exe">
+    <img src="docs/download-button.png" width="440" alt="⬇ Scarica LiveCue — installer per Windows 10/11, ultima versione">
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/ncrdavide-svg/LiveCue?label=versione&color=2ea44f" alt="versione"><br>
+  Il pulsante scarica direttamente <code>LiveCue-Setup.exe</code> · <a href="https://github.com/ncrdavide-svg/LiveCue/releases">tutte le versioni e le novità</a>
+</p>
+
+---
+
+## Come si installa
+
+1. **Clicca il pulsante verde qui sopra**: parte subito il download di `LiveCue-Setup.exe`, sempre l'ultima versione.
+2. **Apri il file scaricato** (di solito è nella cartella *Download*).
+3. Se compare la finestra blu **«Windows ha protetto il PC»**, clicca **Ulteriori informazioni** e poi **Esegui comunque**: succede perché l'installer non ha una firma digitale a pagamento, non perché sia pericoloso.
+4. Segui l'installazione: puoi installare **per tutti gli utenti** (servono i permessi di amministratore) o **solo per te**.
+
+Il setup contiene già .NET e VLC: sul PC non serve installare altro. Per aggiornare basta installare la versione nuova sopra quella vecchia.
 
 ## Requisiti
 
@@ -31,7 +51,7 @@ dotnet test
 powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1 -Version 1.0.0
 ```
 
-Crea `artifacts\installer\LiveCue-Setup-1.0.0.exe` (serve [Inno Setup 6](https://jrsoftware.org/isinfo.php): `winget install JRSoftware.InnoSetup`). Il setup contiene già .NET e VLC, quindi sui PC di destinazione non serve installare niente: funziona su Windows 10/11 a 64 bit (anche ARM64, in emulazione). Durante l'installazione si può scegliere "per tutti gli utenti" (richiede admin) o "solo per me".
+Crea in `artifacts\installer\` sia `LiveCue-Setup-1.0.0.exe` sia `LiveCue-Setup.exe` (stesso file, nome fisso: **vanno caricati tutti e due nella Release**, il pulsante di download punta a `releases/latest/download/LiveCue-Setup.exe`) (serve [Inno Setup 6](https://jrsoftware.org/isinfo.php): `winget install JRSoftware.InnoSetup`). Il setup contiene già .NET e VLC, quindi sui PC di destinazione non serve installare niente: funziona su Windows 10/11 a 64 bit (anche ARM64, in emulazione). Durante l'installazione si può scegliere "per tutti gli utenti" (richiede admin) o "solo per me".
 
 ## Struttura
 
