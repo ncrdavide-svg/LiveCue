@@ -26,6 +26,8 @@
 
 Il setup contiene già .NET e VLC: sul PC non serve installare altro. Per aggiornare basta installare la versione nuova sopra quella vecchia.
 
+> **Suite LIVE** · Con **[LiveSuite](https://github.com/ncrdavide-svg/LiveSuite)** installi e tieni aggiornate LiveCue, LiveSlides e LiveCount da un'unica piccola app (nessuna installazione): **[scarica LiveSuite.exe](https://github.com/ncrdavide-svg/LiveSuite/releases/latest/download/LiveSuite.exe)**.
+
 ## Requisiti
 
 - Windows 10/11
