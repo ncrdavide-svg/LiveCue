@@ -5,7 +5,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         mc:Ignorable="d"
         Icon="/Assets/LiveCue.ico"
-        Title="LiveCue" Height="510" Width="340"
+        Title="LiveCue" Width="340" SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="False"
@@ -36,5 +36,9 @@
         <Button x:Name="NoThanksButton" Content="No, grazie" IsEnabled="False"
                 Click="NoThanksButton_Click" HorizontalAlignment="Center"
                 Padding="18,8" Background="#0D0C22" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+        <!-- Whoever has a supporter code enters it here once; then no app of the suite shows this window. -->
+        <TextBlock HorizontalAlignment="Center" Margin="0,14,0,0" FontSize="11">
+            <Hyperlink Click="CodeLink_Click" Foreground="#0D0C22">Ho un codice sostenitore</Hyperlink>
+        </TextBlock>
     </StackPanel>
 </Window>

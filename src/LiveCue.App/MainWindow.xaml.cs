@@ -57,7 +57,11 @@ public partial class MainWindow : Window
         // even an unrelated OS notification toast - briefly took focus. ShowDialog() can't be
         // lost that way. Only after this window is actually up: Owner needs a shown/initialized
         // window to attach to.
-        Loaded += (_, _) => new SupportWindow { Owner = this }.ShowDialog();
+        // Supporters (valid sostenitore.txt, see SupporterCode) don't get it at all.
+        Loaded += (_, _) =>
+        {
+            if (SupporterCode.FindSupporter() == null) new SupportWindow { Owner = this }.ShowDialog();
+        };
     }
 
     /// <summary>

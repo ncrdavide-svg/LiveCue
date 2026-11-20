@@ -46,6 +46,8 @@ public partial class SupportWindow : Window
 
     private void NoThanksButton_Click(object sender, RoutedEventArgs e) => Close();
 
+    void CodeLink_Click(object sender, RoutedEventArgs e) { if (SupporterCodeDialog.Ask(this)) Close(); }
+
     private void Link_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => OpenUrl(SupportUrl);
 
     private void GitHubLink_Click(object sender, RoutedEventArgs e) => OpenUrl(GitHubUrl);
